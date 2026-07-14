@@ -1,0 +1,242 @@
+/**
+ * Liquid-glass design system + cinematic entrance animations.
+ * Two glass variants: .liquid-glass (subtle — nav, chips, cards) and
+ * .liquid-glass-strong (heavy blur — primary CTAs). The gradient border is
+ * painted by a masked ::before so it follows any border-radius.
+ */
+
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.15) 80%,
+    rgba(255, 255, 255, 0.45) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.liquid-glass-strong {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(50px);
+  -webkit-backdrop-filter: blur(50px);
+  border: none;
+  box-shadow:
+    4px 4px 4px rgba(0, 0, 0, 0.05),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass-strong::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.2) 80%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Light theme: white-on-white glass disappears, so flip to smoked glass. */
+
+/* ------------------------------------------------------------------ */
+/* Cinematic entrances                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Word-by-word blur-in for display headlines (BlurText component). */
+@keyframes word-blur-in {
+  0% {
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  50% {
+    filter: blur(5px);
+    opacity: 0.5;
+    transform: translateY(-5px);
+  }
+  100% {
+    filter: blur(0px);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.blur-word {
+  display: inline-block;
+  animation: word-blur-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: filter, transform, opacity;
+}
+
+/* Block-level entrance for badges, copy, CTAs, cards. */
+@keyframes rise-blur-in {
+  from {
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    filter: blur(0px);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-blur-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blur-word,
+  .rise-in {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero scrim: darkens the 3D scene behind the headline so the copy    */
+/* always reads. Ellipse behind the centre column + top/bottom bands.  */
+/* ------------------------------------------------------------------ */
+.hero-scrim {
+  background:
+    radial-gradient(
+      ellipse 60% 46% at 50% 44%,
+      rgb(6 7 10 / 0.94) 0%,
+      rgb(6 7 10 / 0.82) 45%,
+      rgb(6 7 10 / 0.4) 72%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(6 7 10 / 0.75) 0%,
+      rgb(6 7 10 / 0.1) 22%,
+      rgb(6 7 10 / 0.1) 60%,
+      rgb(6 7 10 / 0.9) 100%
+    );
+}
+
+/* Belt-and-braces legibility for text sitting over the scene. */
+.hero-scrim ~ * h1,
+.hero-scrim ~ * p {
+  text-shadow: 0 1px 18px rgb(0 0 0 / 0.55);
+}
+
+/* ------------------------------------------------------------------ */
+/* Cursor spotlight: a faint warm glow that follows the pointer and    */
+/* catches the glass. Desktop-only; pure CSS vars updated on mousemove.*/
+/* ------------------------------------------------------------------ */
+.spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(
+    520px circle at var(--mx, 50vw) var(--my, 40vh),
+    rgb(245 180 23 / 0.06),
+    transparent 70%
+  );
+}
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .spotlight {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Film grain: a whisper of animated noise over dark surfaces.         */
+/* ------------------------------------------------------------------ */
+.grain {
+  position: fixed;
+  inset: -60px;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain-shift 1.4s steps(4) infinite;
+}
+@keyframes grain-shift {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-24px, 16px);
+  }
+  50% {
+    transform: translate(18px, -20px);
+  }
+  75% {
+    transform: translate(-12px, -14px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grain {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Route transitions: each page blurs & rises in.                      */
+/* ------------------------------------------------------------------ */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
+}

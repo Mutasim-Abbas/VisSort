@@ -1,0 +1,382 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Registered custom properties: bar movement is transform-only        */
+/* (translateX via --tx). Registering them lets CSS transitions        */
+/* interpolate the vars, and lets keyframes compose with them.         */
+/* ------------------------------------------------------------------ */
+@property --tx {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --sy {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@layer base {
+  html {
+    height: 100%;
+  }
+  body {
+    min-height: 100%;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Two-ring focus halo on every interactive element (DESIGN §7).     */
+  :where(button, a, select, summary, [role='option'], [tabindex]):focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--bg-base),
+      0 0 0 4px var(--focus-ring);
+  }
+
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Theme cross-fade: applied via a short-lived class on <html> when    */
+/* the toggle is pressed. Bars are excluded (they have their own       */
+/* transition rules). Reduced motion: --duration-slow is 0ms.          */
+/* ------------------------------------------------------------------ */
+html.theme-switching body,
+html.theme-switching body *:not(.bar) {
+  transition:
+    background-color var(--duration-slow) linear,
+    color var(--duration-slow) linear,
+    border-color var(--duration-slow) linear !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Wordmark                                                            */
+/* ------------------------------------------------------------------ */
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--accent), var(--color-bar-overwriting));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Header aurora — the one decorative flourish (DESIGN §6.4)           */
+/* ------------------------------------------------------------------ */
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  will-change: transform;
+}
+.aurora::before {
+  left: 16%;
+  top: -150px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    transparent 70%
+  );
+  animation: aurora-a 18s linear alternate infinite;
+}
+.aurora::after {
+  left: 44%;
+  top: -170px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-bar-overwriting) 12%, transparent),
+    transparent 70%
+  );
+  animation: aurora-b 18s linear alternate infinite;
+}
+@keyframes aurora-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(150px, 30px, 0) scale(1.25);
+  }
+}
+@keyframes aurora-b {
+  from {
+    transform: translate3d(0, 12px, 0) scale(1.15);
+  }
+  to {
+    transform: translate3d(-130px, -18px, 0) scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce), (max-width: 639px) {
+  .aurora::before,
+  .aurora::after {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The one glass layer: control bar (+ its mobile fixed variant)       */
+/* ------------------------------------------------------------------ */
+.glass {
+  position: relative;
+  background: color-mix(in srgb, var(--bg-surface-2) 72%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  box-shadow: var(--shadow-2);
+}
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--glass-catch);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Bars (DESIGN §5.3, §5.4). Movement is translateX(--tx) only.        */
+/* --step-ms is set on the canvas from the live speed; at ≥20 steps/s  */
+/* the canvas gets .no-transitions and every bar state snaps.          */
+/* ------------------------------------------------------------------ */
+.bar {
+  position: absolute;
+  bottom: 12px; /* marker strip below the baseline for the pivot chevron */
+  left: 0;
+  transform: translateX(var(--tx)) scaleY(var(--sy));
+  transform-origin: bottom;
+  background-color: var(--color-bar-default);
+  transition:
+    --tx clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-in-out),
+    --sy clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-out),
+    height min(120ms, calc(var(--step-ms, 25ms) * 0.8)) var(--ease-out),
+    background-color min(90ms, calc(var(--step-ms, 25ms) * 0.8)) linear;
+}
+.bar-rounded {
+  border-radius: 2px 2px 0 0;
+}
+/* Glow ONLY on comparing / swapping / pivot (≤ ~5 bars at once). */
+.bar-comparing {
+  background-color: var(--color-bar-comparing);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-bar-comparing) 55%, transparent);
+}
+.bar-swapping {
+  background-color: var(--color-bar-swapping);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-bar-swapping) 55%, transparent);
+}
+.bar-pivot {
+  background-color: var(--color-bar-pivot);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-bar-pivot) 55%, transparent);
+}
+.bar-overwriting {
+  background-color: var(--color-bar-overwriting);
+  border-top: 2px solid var(--color-bar-cap);
+}
+.bar-sorted {
+  background-color: var(--color-bar-sorted);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0));
+}
+
+.no-transitions .bar,
+.no-transitions .pivot-marker {
+  transition: none !important;
+}
+
+/* Pivot chevron: one marker element in the strip below the baseline.  */
+.pivot-marker {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid var(--color-bar-pivot);
+  transform: translateX(var(--tx));
+  transition: --tx clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-in-out);
+}
+
+/* Completion sweep (DESIGN §5.5) — brightness + scaleY, staggered.    */
+@keyframes celebrate {
+  0% {
+    filter: brightness(1);
+    transform: translateX(var(--tx)) scaleY(1);
+  }
+  40% {
+    filter: brightness(1.35);
+    transform: translateX(var(--tx)) scaleY(1.045);
+  }
+  100% {
+    filter: brightness(1);
+    transform: translateX(var(--tx)) scaleY(1);
+  }
+}
+.bar-celebrate {
+  animation: celebrate 240ms var(--ease-pop);
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.status-pill {
+  transform: translate(-50%, 0);
+  animation: pill-in var(--duration-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Color feedback stays (≤80ms); movement, scale and stagger go.     */
+  .bar {
+    transition-property: background-color;
+    transition-duration: var(--duration-fast);
+  }
+  .bar-celebrate {
+    animation: none;
+  }
+  .pivot-marker {
+    transition: none;
+  }
+  .status-pill {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Sliders (DESIGN §7.3): 4px track, 18px thumb, 44px hit area.        */
+/* --fill is the filled-track percentage, set inline by the component. */
+/* ------------------------------------------------------------------ */
+:root[data-theme='dark'] {
+  --slider-track: var(--bg-surface-3);
+}
+
+.vs-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px; /* touch target */
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.vs-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--fill, 0%),
+    var(--slider-track) var(--fill, 0%)
+  );
+}
+.vs-slider::-moz-range-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--slider-track);
+}
+.vs-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.vs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: var(--radius-full);
+  background: var(--text-primary);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.vs-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--text-primary);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.vs-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.vs-slider:active::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+.vs-slider:hover::-moz-range-thumb {
+  transform: scale(1.15);
+}
+.vs-slider:active::-moz-range-thumb {
+  transform: scale(1.25);
+}
+.vs-slider:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.vs-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--bg-base),
+    0 0 0 4px var(--focus-ring);
+}
+.vs-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--bg-base),
+    0 0 0 4px var(--focus-ring);
+}
+.vs-slider:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vs-slider:disabled::-webkit-slider-thumb {
+  border-color: var(--border-strong);
+}
+.vs-slider:disabled::-moz-range-thumb {
+  border-color: var(--border-strong);
+}
+
+/* ------------------------------------------------------------------ */
+/* kbd chips (DESIGN §7.9)                                             */
+/* ------------------------------------------------------------------ */
+.kbd {
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+}

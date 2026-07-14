@@ -1,0 +1,117 @@
+/* Styles for the Array and Tree view modes (Columns bars live in index.css). */
+
+:root[data-theme='dark'] {
+  /* Text color that reads on the bright state colors of this theme. */
+  --on-state: #0a0b0f;
+}
+
+/* ------------------------------------------------------------------ */
+/* Array view: numbered cells that slide between grid positions.       */
+/* Movement is transform-only, mirroring the bars' rules; the canvas   */
+/* gets .no-transitions at high speed and every cell snaps.            */
+/* ------------------------------------------------------------------ */
+.cell {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface-3);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  transition:
+    transform clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-in-out),
+    background-color min(90ms, calc(var(--step-ms, 25ms) * 0.8)) linear,
+    border-color min(90ms, calc(var(--step-ms, 25ms) * 0.8)) linear,
+    color min(90ms, calc(var(--step-ms, 25ms) * 0.8)) linear;
+}
+.no-transitions .cell {
+  transition: none !important;
+}
+.cell-comparing {
+  background-color: var(--color-bar-comparing);
+  border-color: var(--color-bar-comparing);
+  color: var(--on-state);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--color-bar-comparing) 45%, transparent);
+}
+.cell-swapping {
+  background-color: var(--color-bar-swapping);
+  border-color: var(--color-bar-swapping);
+  color: var(--on-state);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--color-bar-swapping) 45%, transparent);
+}
+.cell-overwriting {
+  background-color: var(--color-bar-overwriting);
+  border-color: var(--color-bar-overwriting);
+  color: var(--on-state);
+}
+.cell-pivot {
+  background-color: var(--color-bar-pivot);
+  border-color: var(--color-bar-pivot);
+  color: var(--on-state);
+}
+.cell-sorted {
+  background-color: var(--color-bar-sorted);
+  border-color: var(--color-bar-sorted);
+  color: var(--on-state);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition-property: background-color, border-color, color;
+    transition-duration: var(--duration-fast);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tree view (SVG). Node/segment fills come from the same state tokens */
+/* so the three views always speak one color language.                 */
+/* ------------------------------------------------------------------ */
+.tree-node {
+  transition:
+    fill min(120ms, calc(var(--step-ms, 25ms) * 0.8)) linear,
+    opacity var(--duration-fast) linear;
+}
+.no-transitions .tree-node {
+  transition: none !important;
+}
+.tree-edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.tree-value {
+  fill: var(--on-state);
+  font-family: var(--font-mono);
+}
+.tree-hint {
+  color: var(--text-muted);
+}
+
+/* Nodes/edges pop in at the moment their `divide` step executes. */
+@keyframes tree-grow-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.tree-grow {
+  animation: tree-grow-in 260ms var(--ease-pop) both;
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+.no-transitions .tree-grow {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-grow {
+    animation: none;
+  }
+}
