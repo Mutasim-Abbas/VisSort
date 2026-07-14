@@ -2,7 +2,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+// Deployed to GitHub Pages under /VisSort/, but served from / in dev.
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? '/VisSort/' : '/',
   plugins: [react()],
   test: {
     environment: 'jsdom',
@@ -10,4 +12,4 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
   },
-});
+}));
