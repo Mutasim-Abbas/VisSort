@@ -146,9 +146,10 @@ function RecursionTree({
   const { states } = byPosition(frame);
 
   const n = input.length;
-  const nodeH = Math.max(18, Math.min(30, 280 / depth));
-  const gapY = Math.max(14, Math.min(26, 200 / depth));
+  const nodeH = Math.max(14, Math.min(22, 220 / depth));
+  const gapY = Math.max(12, Math.min(22, 170 / depth));
   const rowH = nodeH + gapY;
+  const labelSize = Math.max(8, Math.min(10, nodeH * 0.5));
 
   const xOf = (lo: number) => (lo / n) * width + 1;
   const wOf = (lo: number, hi: number) => Math.max(3, ((hi - lo + 1) / n) * width - 2);
@@ -203,7 +204,7 @@ function RecursionTree({
         const w = wOf(seg.lo, seg.hi);
         const y = yOf(seg.depth);
         const label = seg.hi === seg.lo ? `${seg.lo}` : `${seg.lo}–${seg.hi}`;
-        const showLabel = w >= label.length * 7 + 10 && nodeH >= 18;
+        const showLabel = w >= label.length * labelSize * 0.75 + 8 && nodeH >= 14;
 
         return (
           <g key={`n-${k}`} className="tree-grow">
@@ -224,7 +225,7 @@ function RecursionTree({
                 y={y + nodeH / 2}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={11}
+                fontSize={labelSize}
                 fontFamily="var(--font-mono)"
                 fill={
                   allSorted || isCurrent || isCombining

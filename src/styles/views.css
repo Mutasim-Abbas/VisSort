@@ -91,6 +91,25 @@
   color: var(--text-muted);
 }
 
+/* ------------------------------------------------------------------ */
+/* Live pseudocode: the executing line lights up, in lock-step with    */
+/* the animation (Learn page CodeRunner).                              */
+/* ------------------------------------------------------------------ */
+.code-line {
+  transition:
+    background-color 120ms linear,
+    box-shadow 120ms linear;
+}
+.code-line-active {
+  background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .code-line {
+    transition: none;
+  }
+}
+
 /* Nodes/edges pop in at the moment their `divide` step executes. */
 @keyframes tree-grow-in {
   from {

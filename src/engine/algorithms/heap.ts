@@ -14,12 +14,12 @@ export const heap: SortGenerator = function* heap(input) {
       let child = 2 * root + 1;
       if (child >= hi) break;
       if (child + 1 < hi) {
-        yield { type: 'compare', i: child, j: child + 1 };
+        yield { type: 'compare', i: child, j: child + 1, line: 5 };
         if (a[child + 1] > a[child]) child++;
       }
-      yield { type: 'compare', i: root, j: child };
+      yield { type: 'compare', i: root, j: child, line: 5 };
       if (a[root] < a[child]) {
-        yield { type: 'swap', i: root, j: child };
+        yield { type: 'swap', i: root, j: child, line: 5 };
         [a[root], a[child]] = [a[child], a[root]];
         root = child;
       } else {
@@ -32,10 +32,10 @@ export const heap: SortGenerator = function* heap(input) {
     yield* siftDown(i, n);
   }
   for (let end = n - 1; end > 0; end--) {
-    yield { type: 'swap', i: 0, j: end };
+    yield { type: 'swap', i: 0, j: end, line: 3 };
     [a[0], a[end]] = [a[end], a[0]];
-    yield { type: 'markSorted', indices: [end] };
+    yield { type: 'markSorted', indices: [end], line: 3 };
     yield* siftDown(0, end);
   }
-  if (n > 0) yield { type: 'markSorted', indices: [0] };
+  if (n > 0) yield { type: 'markSorted', indices: [0], line: 3 };
 };

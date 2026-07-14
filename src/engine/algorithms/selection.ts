@@ -10,14 +10,14 @@ export const selection: SortGenerator = function* selection(input) {
   for (let i = 0; i < n - 1; i++) {
     let min = i;
     for (let j = i + 1; j < n; j++) {
-      yield { type: 'compare', i: min, j };
+      yield { type: 'compare', i: min, j, line: 4 };
       if (a[j] < a[min]) min = j;
     }
     if (min !== i) {
-      yield { type: 'swap', i, j: min };
+      yield { type: 'swap', i, j: min, line: 5 };
       [a[i], a[min]] = [a[min], a[i]];
     }
-    yield { type: 'markSorted', indices: [i] };
+    yield { type: 'markSorted', indices: [i], line: 5 };
   }
-  if (n > 0) yield { type: 'markSorted', indices: [n - 1] };
+  if (n > 0) yield { type: 'markSorted', indices: [n - 1], line: 5 };
 };

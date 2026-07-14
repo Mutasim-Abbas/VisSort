@@ -197,7 +197,7 @@ export default function Visualizer() {
   }, [algorithm.name, status, frame.counters.comparisons, frame.index, frame.total]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 pb-28 pt-28">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 pb-28 pt-[150px] md:pt-28">
       {!cinema && (
         <div>
           <p className="mb-1 font-mono text-xs uppercase tracking-[0.25em] text-accent">

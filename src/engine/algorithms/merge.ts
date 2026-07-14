@@ -13,39 +13,39 @@ export const merge: SortGenerator = function* merge(input) {
   function* mergeSort(lo: number, hi: number): Generator<Step, void, undefined> {
     // The node for this range appears the moment the call opens, so the Tree
     // view shows the array being split apart step by step.
-    yield { type: 'divide', lo, hi };
+    yield { type: 'divide', lo, hi, line: 0 };
     if (hi - lo < 1) return;
     const mid = (lo + hi) >> 1;
     yield* mergeSort(lo, mid);
     yield* mergeSort(mid + 1, hi);
 
-    yield { type: 'combine', lo, hi };
+    yield { type: 'combine', lo, hi, line: 5 };
     const left = a.slice(lo, mid + 1);
     const right = a.slice(mid + 1, hi + 1);
     let i = 0;
     let j = 0;
     let k = lo;
     while (i < left.length && j < right.length) {
-      yield { type: 'compare', i: lo + i, j: mid + 1 + j };
+      yield { type: 'compare', i: lo + i, j: mid + 1 + j, line: 6 };
       if (left[i] <= right[j]) {
-        yield { type: 'overwrite', index: k, value: left[i] };
+        yield { type: 'overwrite', index: k, value: left[i], line: 7 };
         a[k] = left[i];
         i++;
       } else {
-        yield { type: 'overwrite', index: k, value: right[j] };
+        yield { type: 'overwrite', index: k, value: right[j], line: 7 };
         a[k] = right[j];
         j++;
       }
       k++;
     }
     while (i < left.length) {
-      yield { type: 'overwrite', index: k, value: left[i] };
+      yield { type: 'overwrite', index: k, value: left[i], line: 7 };
       a[k] = left[i];
       i++;
       k++;
     }
     while (j < right.length) {
-      yield { type: 'overwrite', index: k, value: right[j] };
+      yield { type: 'overwrite', index: k, value: right[j], line: 7 };
       a[k] = right[j];
       j++;
       k++;
@@ -53,5 +53,5 @@ export const merge: SortGenerator = function* merge(input) {
   }
 
   yield* mergeSort(0, n - 1);
-  yield { type: 'markSorted', indices: range(n) };
+  yield { type: 'markSorted', indices: range(n), line: 5 };
 };

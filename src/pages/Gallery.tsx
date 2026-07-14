@@ -92,7 +92,7 @@ function MiniSort({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
 
 export default function Gallery() {
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-28">
+    <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-[150px] md:pt-28">
       <p className="mb-2 font-mono text-xs uppercase tracking-[0.25em] text-accent">Gallery</p>
       <h1 className="font-display text-4xl italic tracking-[-1px] text-primary md:text-5xl">
         Choose an algorithm

@@ -269,6 +269,92 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+/**
+ * Head-to-head scoreboard: the same metric from both lanes, side by side, with
+ * the cheaper one highlighted and the ratio spelled out. This is the bit that
+ * turns "two pretty animations" into an argument about cost.
+ */
+function Scoreboard({ lanes }: { lanes: readonly [Lane, Lane] }) {
+  const [a, b] = lanes;
+  const metaA = getAlgorithm(a.key);
+  const metaB = getAlgorithm(b.key);
+
+  const rows = [
+    {
+      label: 'Comparisons',
+      a: a.frame.counters.comparisons,
+      b: b.frame.counters.comparisons,
+    },
+    { label: 'Swaps', a: a.frame.counters.swaps, b: b.frame.counters.swaps },
+    { label: 'Array writes', a: a.frame.counters.writes, b: b.frame.counters.writes },
+    { label: 'Array accesses', a: a.frame.counters.accesses, b: b.frame.counters.accesses },
+    { label: 'Total steps', a: a.frame.total, b: b.frame.total },
+  ];
+
+  const ratio =
+    a.frame.total > 0 && b.frame.total > 0
+      ? Math.max(a.frame.total, b.frame.total) / Math.min(a.frame.total, b.frame.total)
+      : 1;
+  const leaner = a.frame.total <= b.frame.total ? metaA : metaB;
+  const heavier = a.frame.total <= b.frame.total ? metaB : metaA;
+
+  return (
+    <div className="liquid-glass mt-6 rounded-[1.25rem] p-5">
+      <h2 className="mb-4 font-display text-2xl italic text-primary">Head to head</h2>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] border-collapse text-sm">
+          <thead>
+            <tr className="text-left">
+              <th className="pb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+                Metric
+              </th>
+              <th className="pb-2 text-right font-display text-lg italic text-primary">
+                {metaA.name}
+              </th>
+              <th className="pb-2 text-right font-display text-lg italic text-primary">
+                {metaB.name}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              // Lower is better. Only call a winner once both have a value.
+              const aWins = r.a < r.b;
+              const bWins = r.b < r.a;
+              return (
+                <tr key={r.label} className="border-t border-subtle">
+                  <td className="py-2 text-secondary">{r.label}</td>
+                  <td
+                    className={`py-2 text-right font-mono tabular-nums ${aWins ? 'text-lime' : 'text-primary'}`}
+                  >
+                    {fmt(r.a)}
+                  </td>
+                  <td
+                    className={`py-2 text-right font-mono tabular-nums ${bWins ? 'text-lime' : 'text-primary'}`}
+                  >
+                    {fmt(r.b)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {ratio > 1.05 && (
+        <p className="mt-4 rounded-xl bg-surface-3/60 px-4 py-3 text-sm leading-snug text-secondary">
+          On this array <span className="font-semibold text-lime">{leaner.name}</span> needs{' '}
+          <span className="font-mono text-primary">{ratio.toFixed(1)}×</span> fewer operations than{' '}
+          <span className="text-primary">{heavier.name}</span> — {leaner.complexity.average} versus{' '}
+          {heavier.complexity.average}. Grow the array and that gap widens fast; that is exactly
+          what Big-O predicts.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Compare() {
   const [keyA, setKeyA] = useState<AlgorithmKey>('bubble');
   const [keyB, setKeyB] = useState<AlgorithmKey>('quick');
@@ -284,7 +370,7 @@ export default function Compare() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-28">
+    <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-[150px] md:pt-28">
       <p className="mb-2 font-mono text-xs uppercase tracking-[0.25em] text-accent">Compare</p>
       <h1 className="font-display text-4xl italic tracking-[-1px] text-primary md:text-5xl">
         Race &amp; performance
@@ -385,6 +471,9 @@ export default function Compare() {
           );
         })}
       </div>
+
+      {/* -------- Head-to-head scoreboard -------- */}
+      <Scoreboard lanes={lanes} />
 
       {/* -------- Growth chart -------- */}
       <section className="mt-16">

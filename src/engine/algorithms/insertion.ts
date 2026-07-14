@@ -12,9 +12,9 @@ export const insertion: SortGenerator = function* insertion(input) {
   for (let i = 1; i < n; i++) {
     let j = i;
     while (j > 0) {
-      yield { type: 'compare', i: j - 1, j };
+      yield { type: 'compare', i: j - 1, j, line: 3 };
       if (a[j - 1] > a[j]) {
-        yield { type: 'swap', i: j - 1, j };
+        yield { type: 'swap', i: j - 1, j, line: 4 };
         [a[j - 1], a[j]] = [a[j], a[j - 1]];
         j--;
       } else {
@@ -22,5 +22,5 @@ export const insertion: SortGenerator = function* insertion(input) {
       }
     }
   }
-  yield { type: 'markSorted', indices: range(n) };
+  yield { type: 'markSorted', indices: range(n), line: 1 };
 };

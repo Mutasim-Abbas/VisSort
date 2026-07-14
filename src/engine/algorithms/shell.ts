@@ -17,9 +17,9 @@ export const shell: SortGenerator = function* shell(input) {
     for (let i = gap; i < n; i++) {
       let j = i;
       while (j >= gap) {
-        yield { type: 'compare', i: j - gap, j };
+        yield { type: 'compare', i: j - gap, j, line: 5 };
         if (a[j - gap] > a[j]) {
-          yield { type: 'swap', i: j - gap, j };
+          yield { type: 'swap', i: j - gap, j, line: 6 };
           [a[j - gap], a[j]] = [a[j], a[j - gap]];
           j -= gap;
         } else {
@@ -28,5 +28,5 @@ export const shell: SortGenerator = function* shell(input) {
       }
     }
   }
-  yield { type: 'markSorted', indices: range(n) };
+  yield { type: 'markSorted', indices: range(n), line: 7 };
 };

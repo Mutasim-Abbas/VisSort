@@ -19,7 +19,7 @@ export const radix: SortGenerator = function* radix(input) {
     const output = new Array<number>(n);
     const count = new Array<number>(10).fill(0);
     for (let i = 0; i < n; i++) {
-      yield { type: 'compare', i, j: i };
+      yield { type: 'compare', i, j: i, line: 2 };
       count[Math.floor(a[i] / exp) % 10]++;
     }
     for (let d = 1; d < 10; d++) count[d] += count[d - 1];
@@ -28,9 +28,9 @@ export const radix: SortGenerator = function* radix(input) {
       output[--count[d]] = a[i];
     }
     for (let i = 0; i < n; i++) {
-      yield { type: 'overwrite', index: i, value: output[i] };
+      yield { type: 'overwrite', index: i, value: output[i], line: 4 };
       a[i] = output[i];
     }
   }
-  yield { type: 'markSorted', indices: range(n) };
+  yield { type: 'markSorted', indices: range(n), line: 5 };
 };

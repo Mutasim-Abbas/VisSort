@@ -118,22 +118,9 @@ function HeroContent() {
           ref={parallaxRef}
           className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pt-28 text-center"
         >
-          {/* Badge */}
-          <div
-            className="liquid-glass rise-in flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4"
-            style={{ animationDelay: '400ms' }}
-          >
-            <span className="rounded-full bg-lime px-3 py-1 text-xs font-semibold text-on-lime">
-              New
-            </span>
-            <span className="text-sm text-primary/90">
-              Three views: Columns, Array &amp; Recursion Tree
-            </span>
-          </div>
-
           {/* Headline — the algorithm name cycles, re-blurring in each time */}
           <h1
-            className="mt-6 flex max-w-4xl flex-wrap justify-center font-display text-6xl italic leading-[0.9] tracking-[-3px] text-primary md:text-7xl lg:text-[5.5rem]"
+            className="flex max-w-4xl flex-wrap justify-center font-display text-5xl italic leading-[0.9] tracking-[-2px] text-primary sm:text-6xl md:text-7xl md:tracking-[-3px] lg:text-[5.5rem]"
             style={{ rowGap: '0.1em' }}
           >
             <span className="blur-word" style={{ marginRight: '0.28em', animationDelay: '500ms' }}>

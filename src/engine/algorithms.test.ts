@@ -101,7 +101,7 @@ describe('recursion annotations (Tree view)', () => {
     expect(combines).toHaveLength(3);
 
     // The root divides first, and each range is divided BEFORE it combines.
-    expect(steps[0]).toEqual({ type: 'divide', lo: 0, hi: 3 });
+    expect(steps[0]).toMatchObject({ type: 'divide', lo: 0, hi: 3 });
     for (const c of combines) {
       const dIdx = steps.findIndex(
         (s) => s.type === 'divide' && s.lo === c.lo && s.hi === c.hi,
@@ -117,7 +117,7 @@ describe('recursion annotations (Tree view)', () => {
     const steps = buildSteps(ALGORITHMS.find((a) => a.key === 'quick')!.generator, input);
     const divides = steps.filter((s) => s.type === 'divide');
     expect(divides.length).toBeGreaterThan(0);
-    expect(steps.find((s) => s.type === 'divide')).toEqual({ type: 'divide', lo: 0, hi: 15 });
+    expect(steps.find((s) => s.type === 'divide')).toMatchObject({ type: 'divide', lo: 0, hi: 15 });
     // Ranges are always well-formed.
     for (const d of divides) {
       if (d.type !== 'divide') continue;
@@ -134,5 +134,33 @@ describe('recursion annotations (Tree view)', () => {
     // Merge is overwrite-based: annotations must not have added swaps/writes.
     expect(c.swaps).toBe(0);
     expect(c.writes).toBeGreaterThan(0);
+  });
+});
+
+describe('pseudocode line mapping', () => {
+  it('every emitted step points at a real line of its algorithm pseudocode', async () => {
+    const { PSEUDOCODE } = await import('./pseudocode');
+    for (const algo of ALGORITHMS) {
+      const lines = PSEUDOCODE[algo.key];
+      expect(lines.length).toBeGreaterThan(0);
+      const steps = buildSteps(algo.generator, generateArray(24, 'random'));
+      const tagged = steps.filter((s) => s.line !== undefined);
+      // The steps a learner watches must be traceable to code.
+      expect(tagged.length).toBeGreaterThan(0);
+      for (const s of steps) {
+        if (s.line === undefined) continue;
+        expect(s.line).toBeGreaterThanOrEqual(0);
+        expect(s.line).toBeLessThan(lines.length);
+      }
+    }
+  });
+
+  it('the executing line changes as the algorithm runs (it is not stuck)', () => {
+    const steps = buildSteps(
+      ALGORITHMS.find((a) => a.key === 'bubble')!.generator,
+      generateArray(12, 'random'),
+    );
+    const distinct = new Set(steps.map((s) => s.line).filter((l) => l !== undefined));
+    expect(distinct.size).toBeGreaterThan(1);
   });
 });

@@ -3,7 +3,15 @@
  * that yields these steps; the playback driver and all statistics are
  * derived from them. No DOM, no React in this module.
  */
-export type Step =
+/**
+ * Every step carries the pseudocode line (0-indexed into
+ * `PSEUDOCODE[algorithm]`) that produced it. That is what lets the Learn page
+ * highlight the executing line in lock-step with the animation — forwards and
+ * backwards — instead of showing static code beside a moving picture.
+ */
+export type Step = StepKind & { line?: number };
+
+type StepKind =
   | { type: 'compare'; i: number; j: number }
   | { type: 'swap'; i: number; j: number }
   | { type: 'overwrite'; index: number; value: number }
