@@ -55,27 +55,29 @@ export function Nav() {
         <div className="h-12 w-12 shrink-0" aria-hidden="true" />
       </div>
 
-      {/* Mobile: full-width scrollable pill row. Links are ≥44px tall so they
-          are a real touch target, not a mouse target shrunk down. */}
-      <nav
-        aria-label="Primary mobile"
-        className="liquid-glass mt-2 flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1 md:hidden"
-      >
-        {LINKS.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            className={({ isActive }) =>
-              `flex min-h-[44px] shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors duration-fast ${
-                isActive ? 'bg-accent text-on-accent' : 'text-primary/90'
-              }`
-            }
-          >
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
+      {/* Mobile: swipeable pill row (scroll-snap + edge fade so it's obviously
+          scrollable). Links stay ≥44px tall — real touch targets. */}
+      <div className="nav-scroll-wrap relative mt-2 md:hidden">
+        <nav
+          aria-label="Primary mobile"
+          className="liquid-glass nav-scroll flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1"
+        >
+          {LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.end}
+              className={({ isActive }) =>
+                `flex min-h-[44px] shrink-0 snap-start items-center rounded-full px-3.5 text-sm font-medium transition-colors duration-fast ${
+                  isActive ? 'bg-accent text-on-accent' : 'text-primary/90'
+                }`
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </header>
   );
 }

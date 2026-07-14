@@ -162,6 +162,30 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Mobile nav: swipeable pill row. Momentum scrolling + snap, no       */
+/* scrollbar, and a fade on the right edge so it reads as scrollable.  */
+/* ------------------------------------------------------------------ */
+.nav-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+.nav-scroll-wrap::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  right: 2px;
+  width: 36px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(to right, transparent, rgb(10 11 15 / 0.85));
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
 /* Cursor spotlight: a faint warm glow that follows the pointer and    */
 /* catches the glass. Desktop-only; pure CSS vars updated on mousemove.*/
 /* ------------------------------------------------------------------ */
