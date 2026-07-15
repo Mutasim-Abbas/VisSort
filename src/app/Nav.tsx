@@ -1,4 +1,5 @@
-import { NavLink, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 
 const LINKS: { to: string; label: string; end?: boolean }[] = [
   { to: '/', label: 'Home', end: true },
@@ -9,11 +10,23 @@ const LINKS: { to: string; label: string; end?: boolean }[] = [
 ];
 
 /**
- * Floating liquid-glass navbar: serif logo coin on the left, a glass pill of
- * links in the center (desktop). Fixed, so page content scrolls underneath the
- * glass. VisSort is dark-only, so there is no theme switch.
+ * Floating liquid-glass navbar. Desktop shows a centred glass pill of links.
+ * Mobile uses a tap-to-open menu (a horizontal scroll strip is fiddly on real
+ * phones), so every link is always one tap away. Dark-only, no theme switch.
  */
 export function Nav() {
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  // Close the menu on navigation and on Escape.
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   return (
     <header className="fixed inset-x-0 top-4 z-50 px-4 lg:px-8">
       <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-3">
@@ -25,6 +38,7 @@ export function Nav() {
           V
         </Link>
 
+        {/* Desktop nav */}
         <nav
           aria-label="Primary"
           className="liquid-glass hidden items-center rounded-full p-1.5 md:flex"
@@ -51,33 +65,66 @@ export function Nav() {
           </Link>
         </nav>
 
-        {/* Balances the logo coin so the nav pill stays optically centred. */}
-        <div className="h-12 w-12 shrink-0" aria-hidden="true" />
+        {/* Mobile menu button */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
+          className="liquid-glass grid h-12 w-12 shrink-0 place-items-center rounded-full text-primary md:hidden"
+        >
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            {open ? (
+              <path d="M6 6l12 12M18 6L6 18" />
+            ) : (
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            )}
+          </svg>
+        </button>
+
+        {/* Desktop spacer keeps the pill optically centred. */}
+        <div className="hidden h-12 w-12 shrink-0 md:block" aria-hidden="true" />
       </div>
 
-      {/* Mobile: swipeable pill row (scroll-snap + edge fade so it's obviously
-          scrollable). Links stay ≥44px tall — real touch targets. */}
-      <div className="nav-scroll-wrap relative mt-2 md:hidden">
+      {/* Mobile dropdown: full list, each row a real 48px touch target. */}
+      {open && (
         <nav
           aria-label="Primary mobile"
-          className="liquid-glass nav-scroll flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1"
+          className="liquid-glass rise-in mt-2 flex flex-col gap-1 rounded-[1.5rem] p-2 md:hidden"
         >
           {LINKS.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
               end={link.end}
+              onClick={() => setOpen(false)}
               className={({ isActive }) =>
-                `flex min-h-[44px] shrink-0 snap-start items-center rounded-full px-3.5 text-sm font-medium transition-colors duration-fast ${
-                  isActive ? 'bg-accent text-on-accent' : 'text-primary/90'
+                `flex min-h-[48px] items-center rounded-2xl px-4 text-base font-medium transition-colors duration-fast ${
+                  isActive ? 'bg-accent text-on-accent' : 'text-primary/90 active:bg-accent-soft'
                 }`
               }
             >
               {link.label}
             </NavLink>
           ))}
+          <Link
+            to="/visualize"
+            onClick={() => setOpen(false)}
+            className="mt-1 flex min-h-[48px] items-center justify-center rounded-2xl bg-lime px-4 text-base font-semibold text-on-lime"
+          >
+            Start sorting
+          </Link>
         </nav>
-      </div>
+      )}
     </header>
   );
 }

@@ -116,7 +116,7 @@ function HeroContent() {
     <>
         <div
           ref={parallaxRef}
-          className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pt-[160px] text-center md:pt-28"
+          className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pt-24 text-center md:pt-28"
         >
           {/* Headline — the algorithm name cycles, re-blurring in each time */}
           <h1
