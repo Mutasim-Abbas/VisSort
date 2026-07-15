@@ -2,6 +2,12 @@
 
 > Owner: ui-ux-designer. Consolidates deliverables **D1–D6** (design direction, tokens, layout, bar-state color+motion, components, race/sound UX) into one buildable spec.
 > Status: complete — frontend-developer should be able to implement F5–F9 (and F11/F12) from this document without follow-up questions.
+>
+> **⚠️ Historical.** This captures the original design system. The shipped app
+> later adopted a **cinematic liquid-glass** direction (Instrument Serif display
+> type, glass chrome, amber + lime accents) and is **dark-theme only** — the
+> light-theme tokens below are no longer used. The bar-state colors and overall
+> approach still hold. See [`../README.md`](../README.md) for what shipped.
 > All contrast ratios below were computed with the WCAG 2.x relative-luminance formula against the exact hex values shown.
 > Last updated: 2026-07-13.
 

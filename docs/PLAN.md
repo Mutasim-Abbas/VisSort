@@ -2,6 +2,14 @@
 
 > Single source of truth for project direction. Task-level breakdown lives in [TODO.md](./TODO.md).
 > Last updated: 2026-07-13 by team-leader.
+>
+> **⚠️ Historical planning doc.** VisSort evolved beyond this original plan.
+> As shipped it is a **5-page** experience (Home, Gallery, Visualizer, Compare,
+> Learn), **dark-theme only** (the light theme was dropped), and has **no
+> backend** (the app is fully client-side — Phase 2 was cancelled). It gained
+> three view modes, a step-by-step recursion tree, a live pseudocode runner,
+> practice quizzes, and sound. See [`../README.md`](../README.md) for the
+> current feature set.
 
 ## 1. Project Goal
 
