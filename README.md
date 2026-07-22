@@ -5,7 +5,7 @@ learning. Watch eight classic algorithms work step by step — in three differen
 views — with live statistics, adjustable speed, sound, and pseudocode that
 executes in lock-step with the animation.
 
-**▶ Live: https://mutasim2004abs-create.github.io/VisSort/**
+**▶ Live: https://mutasim-abbas.github.io/VisSort/**
 
 _Designed & built by **Mutasim Abbas**._
 
