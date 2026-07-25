@@ -234,3 +234,161 @@ F3/F5 ──> F10*   F5 ──> F11*   F5,F6 ──> F12*
 F1 ──> Q1;  F3 ──> Q2;  F5–F9 ──> Q3,Q4 ──> Q5
 (* = stretch)
 ```
+
+---
+
+# Feature — 3D Crane view
+
+> **STATUS 2026-07-26 — DELIVERED.** Built directly in one session at the user's
+> explicit request ("do ur work"), not via the CD1→CF1…CQ1 agent chain. The
+> per-agent task breakdown below is kept for provenance; what actually shipped is
+> documented in [DESIGN.md](./DESIGN.md) §11 and lives in
+> `src/components/three/CraneView.tsx` (single component rather than the planned
+> `CraneRig`/`ValueBox`/`Claw` split — the scene is one `useFrame` loop, so
+> splitting it would have meant threading refs across components for no gain).
+>
+> Delivered & verified in a real browser (Chrome, localhost:5173):
+> - [x] `'crane'` registered in `viewMode.ts` / `ViewModeSwitch.tsx` / `Visualizer.tsx`, enabled for **all 8** algorithms.
+> - [x] Scene, claw choreography, all 6 step types, token-driven colors (read from `tokens.css` at runtime).
+> - [x] Overlays: TIME/SPACE pills, action label, synced pseudocode footer, "Sorted!" flourish.
+> - [x] Degradation: `n > 32` notice + "Shrink to 16 boxes", labels ≤ 20, `SNAP_SPEED` 20, reduced-motion.
+> - [x] Lazy-loaded (own ~10 kB chunk; Visualizer chunk unchanged at ~26 kB); engine untouched.
+> - [x] All 8 algorithms played to a correct sorted finish; merge/radix verified on the overwrite model, quicksort's pivot verified.
+> - [x] Gate green: `tsc --noEmit`, `eslint .`, 239/239 tests, `npm run build`, prettier.
+>
+> **Bugs found and fixed during verification** (both real, both browser-only —
+> neither would have been caught by the build or tests):
+> 1. Both boxes in a swap arced up and passed through each other. Now only the
+>    right-moving box is crane-lifted; its partner slides beneath it.
+> 2. Rapidly toggling view modes left the canvas blank — r3f's default 200 ms
+>    resize debounce drops the measurement across a remount, stranding the canvas
+>    at 300×150. Fixed with `resize={{ debounce: { resize: 0 } }}`.
+>
+> Not done: no automated test covers the 3D view (it is rAF/WebGL-driven; the
+> engine it consumes is already covered by the 239 existing tests).
+
+
+> Added 2026-07-25 by team-leader. Plan: [PLAN.md](./PLAN.md) → "Feature Plan —
+> 3D Crane view mode" (FC1–FC11). Additive on the shipped app.
+> Task IDs: `CD-*` designer, `CF-*` frontend, `CR-*` code-review, `CQ-*` QA.
+> **backend-developer and devops-engineer have NO tasks here — skipped** (pure
+> client-side, no new deps, no deploy/env change; rationale in PLAN FC9).
+> Order is strict: `CD1 → CF1 → CF2 → CF3 → CF4 → CF5 → CR1 → CQ1`.
+> Hard rule for every task: **the engine (`src/engine/`) must not be modified.**
+
+## ui-ux-designer
+
+### CD1. Crane view design + choreography spec — `done` (as DESIGN.md §11, written post-build)
+**Depends on:** nothing (start here). **First, view the reference frames**
+`…/scratchpad/frames/f_001.png … f_010.png` and read PLAN FC1–FC7 + `docs/DESIGN.md`.
+**Skills:** `ui-ux-pro-max`, `anthropic-skills:modern-3d-ui-design`.
+**Deliverable:** a new "§11 — 3D Crane view" section appended to `docs/DESIGN.md`.
+**Acceptance criteria:**
+- [ ] Palette mapping table (reel meaning → VisSort `--color-bar-*`/accent token) per PLAN FC4 — **token names only, no new hex**; states stay CVD-distinct (pivot/overwrite keep a non-hue cue).
+- [ ] Scene spec: rig/gantry proportions & material tone, shelf, claw + straps design, camera angle (fixed 3/4) + lighting recipe, box anatomy (size, corner radius, number typography — which font token, when labels hide).
+- [ ] Per-step choreography spec matching PLAN FC3 for **all 6 step types**, with explicit **timing/easing tied to the existing `--duration-*` / `--ease-*` motion tokens**, including the swap pick-and-place arc phases (descend/grip/lift/travel/set-down).
+- [ ] The **snap-at-speed** rule (≥ 20 steps/s → park claw, snap boxes) and the **reduced-motion** fallback are both specified.
+- [ ] Overlay specs: complexity pills (TIME avg-case + SPACE, glow treatment), action-label text formats per step type, synced code panel styling, completion "Sorted!" flourish + its reduced-motion fallback.
+- [ ] Degradation spec: `n ≤ 20` labelled, `n ≤ 32` full staging, `n > 32` over-cap notice copy + "Shrink to 16 boxes" affordance; empty-state parity with the other views.
+- [ ] Layout in normal vs cinema mode and a mobile note. Written concretely enough that CF2–CF4 need no follow-up questions.
+
+## frontend-developer
+
+**Skills:** `ui-styling`, `anthropic-skills:modern-3d-ui-design`, `ui-ux-pro-max`.
+**Reuse:** `HeroScene.tsx` (r3f setup, dpr clamp, lighting, ContactShadows, idle
+rig drift) and `BarCanvas.tsx` (max-value normalization, `SNAP_SPEED`, celebration
+gating). **Do not touch `src/engine/`.**
+
+### CF1. Register the Crane view mode — `done`
+**Depends on:** CD1.
+Wire the mode through the three registration files (PLAN FC8): add `'crane'` to
+the `ViewMode` union (`viewMode.ts`), add the "Crane" option to
+`ViewModeSwitch.tsx` (enabled for **all 8** algorithms — not algorithm-gated like
+Tree), and render a `<CraneView/>` stub on `viewMode === 'crane'` in
+`Visualizer.tsx`, passing `frame, speed, status, statusLabel, steps, algorithmKey, array`.
+**Acceptance criteria:**
+- [ ] "Crane" appears in the view switch and is selectable for every one of the 8 algorithms.
+- [ ] Selecting it renders the (stub) crane branch without breaking Columns/Array/Tree; switching algorithms keeps Crane selected; no console errors.
+- [ ] `npm run build` and `npm run lint` stay green.
+
+### CF2. 3D scene — rig, shelf & value boxes driven by the Frame — `done`
+**Depends on:** CF1.
+Create `src/components/three/CraneView.tsx` (+ `CraneRig`, `ValueBox`, `Claw`
+sub-components as needed). Render one box per bar id: x from `frame.posOf[id]`,
+height from `frame.heights[id]` normalized to the max value, color from
+`frame.state[id]` mapped to `--color-bar-*` tokens; number on the box face
+(labels per the `n ≤ 20` rule). Gantry rig, shelf, fixed 3/4 camera, lighting,
+ContactShadows in the quant-lab palette.
+**Acceptance criteria:**
+- [ ] For a given static `Frame`, boxes render in the correct slots at correct relative heights with the correct number on each face (≤ 20).
+- [ ] The 6 states map to the correct tokens; emissive/glow only on active boxes (comparing/swapping/pivot), never on all boxes.
+- [ ] Shared geometry/material (not a new material per box); `dpr={[1,2]}`; scene reads clearly against `--bg-canvas`.
+- [ ] Verified in a real browser (state what you saw), not just a passing build.
+
+### CF3. Claw choreography + step-driven motion — `done`
+**Depends on:** CF2.
+Drive the claw and box motion from `steps[frame.index - 1]` (the narration/sound
+pattern) with target-driven lerp toward the Frame's post-step transforms
+(PLAN FC2/FC3). Implement: swap → descend/grip/lift/travel/set-down pick-and-place;
+overwrite → set-down + height morph; compare → glow pair; pivot highlight; sorted →
+lock lime. Implement **snap-at-speed** (≥ 20 steps/s parks the claw and snaps
+boxes) and the **reduced-motion** fallback (no swoop/arc/drift; snap + color only).
+**Acceptance criteria:**
+- [ ] In slow/step mode, a swap visibly plays as claw pick-and-place; an overwrite morphs a box's height; a compare glows exactly the two compared boxes; pivots and sorted read correctly — verified across a swap-model (e.g. quick) **and** an overwrite-model (merge) algorithm.
+- [ ] At speed ≥ 20 steps/s the claw parks and boxes snap; no animation backlog, no dropped-frame stutter.
+- [ ] Stepping **backward** and scrubbing never corrupts box positions/heights (they equal the Frame); no NaN transforms; `prefers-reduced-motion` fallback honored.
+- [ ] `divide`/`combine` steps cause no visual glitch (ignored).
+
+### CF4. Overlays — pills, action label, synced code, completion, cap notice — `done`
+**Depends on:** CF3.
+HTML overlay layer over the canvas (PLAN FC6): glowing TIME(avg)/SPACE pills from
+`algorithm.complexity`; action label from `steps[frame.index-1]` per FC3; synced
+`PSEUDOCODE[algorithmKey]` panel reusing the `CodeRunner.tsx` line-highlight +
+`scrollIntoView` technique; "Sorted!" completion flourish on `status==='done'`;
+`n > 32` non-destructive notice with a "Shrink to 16 boxes" button (sets size via
+the existing size handler); empty-state parity.
+**Acceptance criteria:**
+- [ ] Pills show the selected algorithm's average-time + space and update on algorithm switch.
+- [ ] Action label matches the current step (`a[i] > a[j] ?` on compare, `swap a[i], a[j]` on swap, write/pivot forms otherwise) forwards **and** when scrubbing.
+- [ ] The code panel highlights the line that produced the current step and stays scrolled to it, in lock-step with the animation both directions.
+- [ ] Completion flourish plays on done (reduced-motion → static color+label); over-cap notice appears only for `n > 32` and the shrink button reduces size without mutating any typed custom array silently.
+- [ ] Works in both normal and cinema mode; layout holds at mobile widths (pills wrap, code scrolls).
+
+### CF5. Performance, resource disposal & a11y pass — `done`
+**Depends on:** CF4.
+Finalize `CRANE_MAX = 32` / label threshold `20`; ensure three.js resources are
+disposed on unmount and on mode-switch (no WebGL context leak); keep the
+`aria-live` status parity the other views have; confirm keyboard shortcuts still
+work while in crane mode; verify reduced-motion end-to-end.
+**Acceptance criteria:**
+- [ ] Switching Columns↔Array↔Tree↔Crane repeatedly (≥ 15 cycles) leaks **no** WebGL contexts (DevTools / `WEBGL_lose_context` check) and grows no detached-node/memory trend.
+- [ ] 55–60fps at `n = 32` on a mid-range laptop during slow playback (DevTools performance trace) with no per-frame React `setState` in the render loop.
+- [ ] `aria-live` status summary present; Space/←/→/R shortcuts still operate; axe scan on the crane view shows zero serious/critical issues.
+- [ ] `npm run build`, `npm run lint`, `npm test` all green.
+
+## code-reviewer
+
+### CR1. Adversarial review of the Crane diff — `partial` (self-review only, no independent pass)
+**Depends on:** CF1–CF5. **Skills:** `engineering:code-review`, `security-review`.
+**Acceptance criteria:**
+- [ ] Confirms `src/engine/` is unchanged (diff proof) and colors are token-only (no raw hex in the new components).
+- [ ] Checks for r3f foot-guns: per-frame allocations / `setState` inside `useFrame`, undisposed geometries/materials/textures, listeners not cleaned up, stale-closure bugs on `frame`/`steps`.
+- [ ] Verifies scrub/step-back correctness and the snap-at-speed + reduced-motion branches; flags any NaN-transform or divide-by-zero (n=0 / single element) risk.
+- [ ] Findings returned with severity; no blockers left open before QA.
+
+## qa-tester
+
+### CQ1. Real-browser e2e + sign-off — `done` (manual, in Chrome — see STATUS note; no automated 3D test)
+**Depends on:** CR1. **Skills:** `project-qa-check`, `engineering:testing-strategy`.
+**Acceptance criteria:**
+- [ ] Crane view exercised in a real browser for **all 8 algorithms**: slow playback, single-step, fast playback (snap), full scrub back-and-forth, and run-to-completion flourish — no crashes, no state corruption, boxes always match the array.
+- [ ] Cap behavior verified: `n ≤ 20` labels, `20 < n ≤ 32` staging, `n > 32` shrink notice (and the shrink button); mode-switch stress (no leak/jank); reduced-motion path; mobile viewport; cinema mode.
+- [ ] `npm ci && npm run lint && npm run build && npm test` green from clean; no new prod `npm audit` high/criticals; no new runtime network calls.
+- [ ] Sign-off recorded here with date; any deferred minors listed. Confirms every PLAN FC10 done-criterion is met.
+
+## Dependency graph (this feature)
+
+```
+CD1 ─> CF1 ─> CF2 ─> CF3 ─> CF4 ─> CF5 ─> CR1 ─> CQ1
+(backend-developer & devops-engineer: no tasks — skipped)
+```

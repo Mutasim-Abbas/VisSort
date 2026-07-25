@@ -577,3 +577,106 @@ Desktop (≥1024px):
 8. Focus-visible two-ring halo on every interactive element; disabled logic per §7 table.
 9. Touch targets ≥44px on mobile; fixed bottom transport bar on `sm`.
 10. Exactly one glass layer (control bar) and one decorative flourish (header aurora) — nothing else gets blur, glow, or ambient animation.
+
+---
+
+## 11. 3D Crane view (D7)
+
+> Added 2026-07-26. Implements [PLAN.md](./PLAN.md) §FC1–FC9. This section
+> documents the view **as built** in `src/components/three/CraneView.tsx`.
+>
+> **Scope note on §6.** §6 restricts the app to CSS-only depth, written for the
+> 200-bar 2D canvas. The Crane is an explicitly opt-in, hard-capped, lazily
+> loaded view — §6 continues to govern every other surface.
+
+### 11.1 Concept
+
+The sort staged as a physical **gantry crane** moving numbered boxes on a shelf:
+box height = value, value printed on the front face. Inspired by an
+@algomaster.io reel, rendered in VisSort's own quant-lab palette rather than the
+reel's colors.
+
+### 11.2 Scene
+
+| Element | Spec |
+|---|---|
+| Shelf | `WORLD_W + 1.6` × 0.4 slab at y = −0.2, `#39445c`, metalness 0.5 |
+| Gantry | Two posts + top rail at `RAIL_Y = 4.25`, `#5a6884`, metalness 0.7 |
+| Trolley | Amber (`--accent`) block riding the rail at the claw's x |
+| Strap | Single scaled cylinder from rail down to the claw (length = `RAIL_Y − clawY`) |
+| Claw | Amber head + two prongs, parked at `CLAW_PARK_Y = 3.6` |
+| Camera | Fixed 3/4, fov 40, `[0, 3.2, 9.4]`, `lookAt(0, 1.75, 0)`, whisper of pointer parallax |
+| Lighting | Neutral key + fill so box tokens read true; amber/lime rim lights placed **in front** of the gantry (z ≈ 7.5) so they graze boxes instead of blowing out the posts |
+
+Boxes always fill a constant `WORLD_W = 11`, so `slot = WORLD_W / n` and the
+camera never needs to move as `n` changes. Height maps
+`BOX_H_MIN 0.32 → BOX_H_MAX 3.2`, normalized to the largest value present
+(same rule as `BarCanvas`).
+
+### 11.3 Color state machine
+
+Colors are **read at runtime from the CSS tokens** (`readColors()`), never
+hardcoded — the scene cannot drift from `tokens.css`.
+
+| State | Token | Emissive |
+|---|---|---|
+| default | `--color-bar-default` | 0.04 |
+| comparing | `--color-bar-comparing` | 0.55 |
+| swapping | `--color-bar-swapping` | 0.70 |
+| overwriting | `--color-bar-overwriting` | 0.60 |
+| pivot | `--color-bar-pivot` | 0.50 |
+| sorted | `--color-bar-sorted` | 0.28 |
+
+Materials are born white, so the **first frame snaps** to the state color
+(`userData.tinted`) — otherwise every box flashes white on mount.
+
+### 11.4 Choreography
+
+Driven entirely by `steps[frame.index − 1]`; the engine is untouched. Because the
+`Frame` has already applied the step, each box lerps from where it is currently
+rendered toward its post-step transform (`k = 1 − e^(−12·Δt)`, frame-rate
+independent) and the claw is animated on top to read as the cause.
+
+- **Carry arc** — `lift = sin(π·p) · LIFT`, peaking mid-travel, scaled by distance.
+- **Only the box travelling right is lifted**; its partner slides along the shelf
+  beneath it. Lifting both makes them intersect mid-air — verified visually.
+- **Claw** rides the lifted box; with nothing in flight it hovers over the
+  compared pair, the written index, or the pivot, else returns to park.
+
+| Step | Behaviour | Label |
+|---|---|---|
+| `compare{i,j}` | Pair glows; claw hovers between them | `a[i] > a[j] ?` |
+| `swap{i,j}` | Right-moving box arcs over; partner slides | `swap a[i], a[j]` |
+| `overwrite{index,value}` | Claw descends; box morphs height | `write v → a[i]` |
+| `markPivot{index}` | Purple highlight; claw moves over it | `pivot = a[i]` |
+| `markSorted` | Boxes lock lime | — |
+| `divide` / `combine` | Ignored (tree-view annotations) | — |
+
+### 11.5 Degradation
+
+- **`n > 32`** — non-destructive notice + "Shrink to 16 boxes" button. The array
+  is never silently truncated; the visitor chooses.
+- **`n > 20`** — number labels hidden (faces become unreadable).
+- **Speed ≥ 20 steps/s** — `SNAP_SPEED`, same threshold as `BarCanvas`: the claw
+  parks and boxes snap. A 1.5 s pick-and-place cannot play at 40 steps/s.
+- **`prefers-reduced-motion`** — identical to snap: no arcs, no drift, no bob;
+  state stays fully legible through color.
+
+### 11.6 Overlays
+
+Complexity pills (TIME **average-case**, labeled `avg`, + SPACE) top-center;
+action label bottom-center; the existing `PSEUDOCODE[algorithmKey]` in a footer
+with the current line highlighted in lock-step. On completion the label becomes
+a lime **"Sorted!"** pill.
+
+### 11.7 Performance & lifecycle
+
+- Lazy-loaded — three.js reaches only visitors who open the view (`CraneView`
+  is its own ~10 kB chunk; the Visualizer chunk is unchanged at ~26 kB).
+- `dpr={[1,2]}`, `ContactShadows` instead of per-box shadow maps.
+- Number-label `CanvasTexture`s are cached per value and disposed on unmount —
+  no webfont fetch, no leak.
+- **`resize={{ debounce: { resize: 0 } }}` is required.** With r3f's default
+  200 ms debounce, toggling view modes faster than that drops the pending
+  measurement and the canvas is stranded at its unsized 300×150 default,
+  rendering nothing. Verified with 16 rapid toggles: one canvas, no context loss.

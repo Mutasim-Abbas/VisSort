@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { BarCanvas } from '../components/BarCanvas';
 import { ArrayView } from '../components/ArrayView';
@@ -17,6 +17,12 @@ import { getAlgorithm, ALGORITHM_MAP, type AlgorithmKey } from '../engine/regist
 import { generateArray, type PresetKey } from '../data/presets';
 import { sound } from '../audio/sound';
 import { SoundOnIcon, SoundOffIcon } from '../components/icons';
+
+// Three.js ships only to visitors who actually open the 3D Crane view, keeping
+// the Visualizer chunk as light as it was before the view existed.
+const CraneView = lazy(() =>
+  import('../components/three/CraneView').then((m) => ({ default: m.CraneView })),
+);
 
 function isAlgorithmKey(v: string | null): v is AlgorithmKey {
   return v !== null && v in ALGORITHM_MAP;
@@ -230,89 +236,87 @@ export default function Visualizer() {
       )}
 
       {!cinema && (
-      <Controls
-        algorithmKey={algorithmKey}
-        onAlgorithm={(k) => {
-          setAlgorithmKey(k);
-          // Tree view only exists for divide-and-conquer/heap algorithms.
-          if (!TREE_CAPABLE.includes(k) && viewMode === 'tree') setViewMode('columns');
-        }}
-        preset={preset}
-        onPreset={(p) => {
-          setPreset(p);
-          clearCustom();
-          setUseGenerated(true);
-        }}
-        size={size}
-        onSize={(n) => {
-          setSize(n);
-          clearCustom();
-          setUseGenerated(true);
-        }}
-        speed={speed}
-        onSpeed={setSpeed}
-        onShuffle={() => {
-          setRegenToken((t) => t + 1);
-          clearCustom();
-          setUseGenerated(true);
-        }}
-        running={status === 'playing'}
-      />
+        <Controls
+          algorithmKey={algorithmKey}
+          onAlgorithm={(k) => {
+            setAlgorithmKey(k);
+            // Tree view only exists for divide-and-conquer/heap algorithms.
+            if (!TREE_CAPABLE.includes(k) && viewMode === 'tree') setViewMode('columns');
+          }}
+          preset={preset}
+          onPreset={(p) => {
+            setPreset(p);
+            clearCustom();
+            setUseGenerated(true);
+          }}
+          size={size}
+          onSize={(n) => {
+            setSize(n);
+            clearCustom();
+            setUseGenerated(true);
+          }}
+          speed={speed}
+          onSpeed={setSpeed}
+          onShuffle={() => {
+            setRegenToken((t) => t + 1);
+            clearCustom();
+            setUseGenerated(true);
+          }}
+          running={status === 'playing'}
+        />
       )}
 
-      <div
-        className={`grid flex-1 gap-4 ${cinema ? '' : 'lg:grid-cols-[minmax(0,1fr)_340px]'}`}
-      >
+      <div className={`grid flex-1 gap-4 ${cinema ? '' : 'lg:grid-cols-[minmax(0,1fr)_340px]'}`}>
         <div
           className={`flex flex-col gap-3 ${cinema ? 'min-h-[calc(100vh-260px)]' : 'min-h-[340px] lg:min-h-0'}`}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <ViewModeSwitch mode={viewMode} onMode={setViewMode} algorithmKey={algorithmKey} />
             <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCinema((c) => !c)}
-              aria-pressed={cinema}
-              aria-label={cinema ? 'Exit cinema mode' : 'Cinema mode — hide panels'}
-              title={cinema ? 'Exit cinema mode' : 'Cinema mode — hide panels'}
-              className={`grid h-11 w-11 place-items-center rounded-full border transition-colors duration-fast ${
-                cinema
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : 'border-subtle bg-surface-2 text-secondary hover:border-strong hover:text-primary'
-              }`}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+              <button
+                type="button"
+                onClick={() => setCinema((c) => !c)}
+                aria-pressed={cinema}
+                aria-label={cinema ? 'Exit cinema mode' : 'Cinema mode — hide panels'}
+                title={cinema ? 'Exit cinema mode' : 'Cinema mode — hide panels'}
+                className={`grid h-11 w-11 place-items-center rounded-full border transition-colors duration-fast ${
+                  cinema
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-subtle bg-surface-2 text-secondary hover:border-strong hover:text-primary'
+                }`}
               >
-                {cinema ? (
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-                ) : (
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                )}
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={toggleSound}
-              aria-pressed={soundOn}
-              aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'}
-              title={soundOn ? 'Turn sound off' : 'Turn sound on'}
-              className={`grid h-11 w-11 place-items-center rounded-full border transition-colors duration-fast ${
-                soundOn
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : 'border-subtle bg-surface-2 text-secondary hover:border-strong hover:text-primary'
-              }`}
-            >
-              {soundOn ? <SoundOnIcon /> : <SoundOffIcon />}
-            </button>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {cinema ? (
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                  ) : (
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  )}
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-pressed={soundOn}
+                aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'}
+                title={soundOn ? 'Turn sound off' : 'Turn sound on'}
+                className={`grid h-11 w-11 place-items-center rounded-full border transition-colors duration-fast ${
+                  soundOn
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-subtle bg-surface-2 text-secondary hover:border-strong hover:text-primary'
+                }`}
+              >
+                {soundOn ? <SoundOnIcon /> : <SoundOffIcon />}
+              </button>
             </div>
           </div>
           {isEmpty ? (
@@ -334,6 +338,29 @@ export default function Visualizer() {
                   speed={speed}
                   statusLabel={statusLabel}
                 />
+              )}
+              {viewMode === 'crane' && (
+                <Suspense
+                  fallback={
+                    <div className="flex min-h-[340px] flex-1 items-center justify-center rounded-lg border border-subtle bg-canvas text-sm text-secondary lg:min-h-0">
+                      Loading the crane…
+                    </div>
+                  }
+                >
+                  <CraneView
+                    frame={frame}
+                    steps={steps}
+                    speed={speed}
+                    status={status}
+                    statusLabel={statusLabel}
+                    algorithmKey={algorithmKey}
+                    onShrink={(n) => {
+                      setSize(n);
+                      clearCustom();
+                      setUseGenerated(true);
+                    }}
+                  />
+                </Suspense>
               )}
               <div
                 aria-live="off"
