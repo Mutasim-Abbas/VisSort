@@ -402,15 +402,19 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       // Empty hook. It still moves like a machine rather than snapping at a
       // target: traverse along the rail first, then take up or pay out the
       // hoist — the same two-beat motion as a real gantry, on the same clock.
-      // Stand directly over the column the algorithm is looking at, just clear
-      // of its top — so the machine visibly waits above each one in turn.
+      // Stand over the column the algorithm is looking at — but stay UP at
+      // travel height. Nothing is being moved on a comparison, so there is
+      // nothing to reach down for; the hoist only pays out to pick a box up
+      // (the carry branch above) or to set a written value down.
       let toX = m.clawFromX;
       let toY = CLAW_PARK_Y;
       if (step) {
         toX = xOfPos(m.focus);
-        const overId = frame.posOf.findIndex((p) => p === m.focus);
-        const top = overId >= 0 ? m.curH[overId] : 1;
-        toY = Math.min(CLAW_PARK_Y, top + JAW_GAP + 0.2);
+        if (step.type === 'overwrite') {
+          const overId = frame.posOf.findIndex((p) => p === m.focus);
+          const top = overId >= 0 ? m.curH[overId] : 1;
+          toY = Math.min(CLAW_PARK_Y, top + JAW_GAP + 0.2);
+        }
       }
       cmdX = mix(m.clawFromX, toX, easeInOut(seg(t, 0, 0.55)));
       cmdY = mix(m.clawFromY, toY, easeInOut(seg(t, 0.4, 0.9)));

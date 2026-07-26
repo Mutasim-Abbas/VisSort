@@ -678,10 +678,12 @@ more than a second to read, and at 1 step/s it cannot get one.
   is tiny, so `atan2` turned a few centimetres of lag into a ~45° tilt and the rig
   read as a snapped, flailing arm. Removed deliberately; do not reintroduce
   without clamping against the *rendered* endpoints, not just the angle.
-**The empty hook follows the algorithm's cursor.** It stands directly over the
-column currently being examined — clear of that column's own top, so it visibly
-waits above each one in turn — and walks the shelf column by column rather than
-floating to the midpoint of a compared pair.
+**The empty hook follows the algorithm's cursor, and stays up.** It stands over
+the column currently being examined and walks the shelf column by column rather
+than floating to the midpoint of a compared pair — but it holds **travel
+height** while doing so. A comparison moves nothing, so there is nothing to
+reach down for; the hoist only pays out to pick a box up or to set a written
+value down, and it draws back up to travel height the moment it lets go.
 
 Picking that column is not as simple as "always `step.i`": the two compared
 indices are not interchangeable across algorithms. Quicksort scans with `i`
