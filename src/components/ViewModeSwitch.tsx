@@ -11,7 +11,6 @@ const OPTIONS: { key: ViewMode; label: string }[] = [
   { key: 'columns', label: 'Columns' },
   { key: 'array', label: 'Array' },
   { key: 'tree', label: 'Tree' },
-  { key: 'crane', label: '3D Crane' },
 ];
 
 export function ViewModeSwitch({ mode, onMode, algorithmKey }: Props) {

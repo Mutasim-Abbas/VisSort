@@ -229,7 +229,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   const clawX = useRef(0);
   const clawY = useRef(CLAW_PARK_Y);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     const m = motion.current;
     const instant = snap || reduced;
     const key = `${n}:${maxValue}`;
@@ -289,9 +289,11 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       // The animation must finish inside the player's own step interval or the
       // next step interrupts it. When paused (manual stepping) there is no
       // interval to respect, so use a comfortable fixed beat.
-      // Use nearly the whole step so the seven phases have room to read; the
-      // cap only stops very slow playback from feeling sluggish.
-      const budget = playing ? Math.min(stepMs * 0.92, 1800) : 850;
+      // Use nearly the whole step so the seven phases have room to read. The
+      // machine can never take longer than the player's own interval without
+      // being cut off mid-grab, so a slower crane means a slower step rate —
+      // which is why the speed slider reaches down to 0.25 steps/s.
+      const budget = playing ? Math.min(stepMs * 0.96, 3000) : 1100;
       m.dur = instant || jumped ? 0 : budget / 1000;
       m.t = m.dur > 0 ? 0 : 1;
     }
@@ -359,24 +361,38 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
         cmdX = m.curX[cid];
         cmdY = mix(onBox, CLAW_PARK_Y, easeInOut(seg(t, PH.released, 1)));
       }
-    } else if (step && !instant) {
-      if (step.type === 'compare') {
-        cmdX = (xOfPos(step.i) + xOfPos(step.j)) / 2;
-        cmdY = CLAW_PARK_Y - 0.35;
-      } else if (step.type === 'overwrite') {
-        cmdX = xOfPos(step.index);
-        const id = frame.posOf.findIndex((p) => p === step.index);
-        cmdY = (id >= 0 ? m.curH[id] : 1) + JAW_GAP;
-      } else if (step.type === 'markPivot') {
-        cmdX = xOfPos(step.index);
+    } else if (!instant) {
+      // Empty hook. It still moves like a machine rather than snapping at a
+      // target: traverse along the rail first, then take up or pay out the
+      // hoist — the same two-beat motion as a real gantry, on the same clock.
+      let toX = m.clawFromX;
+      let toY = CLAW_PARK_Y;
+      if (step) {
+        if (step.type === 'compare') {
+          toX = (xOfPos(step.i) + xOfPos(step.j)) / 2;
+          toY = CLAW_PARK_Y - 0.45;
+        } else if (step.type === 'overwrite') {
+          toX = xOfPos(step.index);
+          const id = frame.posOf.findIndex((p) => p === step.index);
+          toY = (id >= 0 ? m.curH[id] : 1) + JAW_GAP;
+        } else if (step.type === 'markPivot') {
+          toX = xOfPos(step.index);
+          toY = CLAW_PARK_Y - 0.25;
+        }
       }
+      cmdX = mix(m.clawFromX, toX, easeInOut(seg(t, 0, 0.55)));
+      cmdY = mix(m.clawFromY, toY, easeInOut(seg(t, 0.4, 0.9)));
+      // Once it has arrived, let it hang and breathe rather than freeze dead.
+      if (t >= 1) cmdY += Math.sin(clock.getElapsedTime() * 1.1) * 0.045;
+      lagRate = 60; // effectively rigid — the easing above *is* the motion
     }
 
-    // Hoisting is rigid; the hook swings horizontally.
+    // The hook follows its commanded position; hoisting is rigid.
     const ck = instant ? 1 : 1 - Math.exp(-lagRate * Math.min(delta, 0.05));
     clawX.current += (cmdX - clawX.current) * ck;
     clawY.current +=
-      (cmdY - clawY.current) * (instant ? 1 : 1 - Math.exp(-30 * Math.min(delta, 0.05)));
+      (cmdY - clawY.current) *
+      (instant ? 1 : 1 - Math.exp(-Math.max(lagRate, 30) * Math.min(delta, 0.05)));
 
     // The gripped box hangs off the hook and follows it exactly. Release the
     // pin as it is set down so it lands precisely on its slot.

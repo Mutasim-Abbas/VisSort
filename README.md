@@ -32,7 +32,9 @@ is no backend.
 
 - **8 algorithms** — Bubble, Insertion, Selection, Merge, Quicksort, Heapsort,
   Shell, and Radix (LSD).
-- **Three views** — **Columns** (animated bars), **Array** (numbered cells that
+- **Three views** — **Columns** (a 3D gantry crane that physically picks up a
+  numbered box, hoists it clear of the shelf and sets it down in its new slot,
+  with the jaws opening and closing on each grab), **Array** (numbered cells that
   slide between indexed slots), and **Tree** (the recursion tree for merge /
   quick that is _built step by step as the algorithm divides_, and the binary
   heap tree for heapsort).

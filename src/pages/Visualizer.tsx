@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BarCanvas } from '../components/BarCanvas';
 import { ArrayView } from '../components/ArrayView';
 import { TreeView } from '../components/TreeView';
 import { ViewModeSwitch } from '../components/ViewModeSwitch';
@@ -66,8 +65,10 @@ export default function Visualizer() {
     isAlgorithmKey(initialAlgo) ? initialAlgo : 'bubble',
   );
   const [preset, setPreset] = useState<PresetKey>('random');
-  const [size, setSize] = useState(40);
-  const [speed, setSpeed] = useState(8); // normal, follow-along default
+  // The crane stages one physical pick-and-place per step, so the defaults are
+  // a demo-sized shelf at one step a second rather than 40 bars at 8.
+  const [size, setSize] = useState(16);
+  const [speed, setSpeed] = useState(1);
   const [regenToken, setRegenToken] = useState(0);
   const [customArray, setCustomArray] = useState<number[] | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('columns');
@@ -324,25 +325,9 @@ export default function Visualizer() {
           ) : (
             <>
               {viewMode === 'columns' && (
-                <BarCanvas frame={frame} speed={speed} status={status} statusLabel={statusLabel} />
-              )}
-              {viewMode === 'array' && (
-                <ArrayView frame={frame} speed={speed} statusLabel={statusLabel} />
-              )}
-              {viewMode === 'tree' && (
-                <TreeView
-                  algorithmKey={algorithmKey}
-                  input={array}
-                  frame={frame}
-                  steps={steps}
-                  speed={speed}
-                  statusLabel={statusLabel}
-                />
-              )}
-              {viewMode === 'crane' && (
                 <Suspense
                   fallback={
-                    <div className="flex min-h-[340px] flex-1 items-center justify-center rounded-lg border border-subtle bg-canvas text-sm text-secondary lg:min-h-0">
+                    <div className="flex min-h-[440px] flex-1 items-center justify-center rounded-lg border border-subtle bg-canvas text-sm text-secondary">
                       Loading the crane…
                     </div>
                   }
@@ -361,6 +346,19 @@ export default function Visualizer() {
                     }}
                   />
                 </Suspense>
+              )}
+              {viewMode === 'array' && (
+                <ArrayView frame={frame} speed={speed} statusLabel={statusLabel} />
+              )}
+              {viewMode === 'tree' && (
+                <TreeView
+                  algorithmKey={algorithmKey}
+                  input={array}
+                  frame={frame}
+                  steps={steps}
+                  speed={speed}
+                  statusLabel={statusLabel}
+                />
               )}
               <div
                 aria-live="off"

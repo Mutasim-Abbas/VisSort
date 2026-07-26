@@ -585,6 +585,13 @@ Desktop (≥1024px):
 > Added 2026-07-26. Implements [PLAN.md](./PLAN.md) §FC1–FC9. This section
 > documents the view **as built** in `src/components/three/CraneView.tsx`.
 >
+> **It is now the "Columns" view.** It began as an opt-in fourth mode; it has
+> since replaced the flat 2D bar canvas as the Visualizer's primary view, so the
+> switch is back to three options (Columns / Array / Tree). `BarCanvas` still
+> backs the Compare page's race, which runs far too fast to stage physically.
+> The Visualizer therefore defaults to **16 values at 1 step/s** — a demo-sized
+> shelf the crane can actually work, rather than 40 bars at 8 steps/s.
+>
 > **Scope note on §6.** §6 restricts the app to CSS-only depth, written for the
 > 200-bar 2D canvas. The Crane is an explicitly opt-in, hard-capped, lazily
 > loaded view — §6 continues to govern every other surface.
