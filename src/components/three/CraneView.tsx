@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { Frame } from '../../engine/player';
 import type { Step, BarState } from '../../engine/types';
 import type { PlaybackStatus } from '../../hooks/usePlayback';
-import { getAlgorithm, type AlgorithmKey } from '../../engine/registry';
+import type { AlgorithmKey } from '../../engine/registry';
 import { PSEUDOCODE } from '../../engine/pseudocode';
 
 /**
@@ -467,7 +467,9 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
     }
 
     // Jaws hinge from the underside of the head and splay outward when open.
-    const halfW = Math.max(0.16, boxW * 0.5) + 0.05;
+    // Closed, the pad's inner face lands exactly on the box face — anything
+    // tighter buries the gripper inside the column it is holding.
+    const halfW = boxW * 0.5 + fingerW * 0.5 + PAD_T;
     if (jawL.current) {
       jawL.current.position.x = -(halfW + jaw * 0.12);
       jawL.current.rotation.z = jaw * 0.5;
@@ -500,6 +502,8 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   const fingerH = Math.min(0.62, Math.max(0.34, boxW * 0.34));
   const tipW = Math.min(0.4, Math.max(0.16, boxW * 0.22));
   const knuckle = Math.min(0.11, Math.max(0.05, boxW * 0.062));
+  /** Rubber pad thickness — also the clearance the closed jaw keeps off the box. */
+  const PAD_T = 0.03;
   const ids = useMemo(() => Array.from({ length: n }, (_, i) => i), [n]);
 
   return (
@@ -665,7 +669,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
           { ref: jawL, s: -1 },
           { ref: jawR, s: 1 },
         ].map(({ ref, s }) => (
-          <group key={s} ref={ref} position={[s * (boxW * 0.5 + 0.05), -0.05, 0]}>
+          <group key={s} ref={ref} position={[s * (boxW * 0.5 + fingerW * 0.5 + PAD_T), -0.05, 0]}>
             {/* knuckle pin */}
             <mesh rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[knuckle, knuckle, boxD * 0.78, 12]} />
@@ -676,14 +680,16 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
               <boxGeometry args={[fingerW, fingerH, boxD * 0.7]} />
               <meshStandardMaterial color="#c7cede" metalness={0.72} roughness={0.32} />
             </mesh>
-            {/* inward-turned tip */}
-            <mesh position={[-s * tipW * 0.34, -fingerH - 0.02, 0]}>
-              <boxGeometry args={[tipW, fingerW, boxD * 0.7]} />
+            {/* Heel flares OUTWARD. It used to turn inward, which drove it
+                straight through the side of the box it was gripping. */}
+            <mesh position={[s * tipW * 0.32, -fingerH + fingerW * 0.4, 0]}>
+              <boxGeometry args={[tipW, fingerW * 0.9, boxD * 0.7]} />
               <meshStandardMaterial color="#c7cede" metalness={0.72} roughness={0.32} />
             </mesh>
-            {/* rubber grip pad on the gripping face */}
-            <mesh position={[-s * fingerW * 0.62, -fingerH * 0.55, 0]}>
-              <boxGeometry args={[fingerW * 0.42, fingerH * 0.72, boxD * 0.64]} />
+            {/* rubber pad — sits on the finger's inner face and only just
+                kisses the box, so contact reads without intersecting it */}
+            <mesh position={[-s * (fingerW * 0.5 + PAD_T * 0.5), -fingerH * 0.55, 0]}>
+              <boxGeometry args={[PAD_T, fingerH * 0.7, boxD * 0.62]} />
               <meshStandardMaterial color="#12161d" metalness={0.1} roughness={0.9} />
             </mesh>
           </group>
@@ -775,7 +781,6 @@ export function CraneView({
   algorithmKey,
   onShrink,
 }: Props) {
-  const algorithm = getAlgorithm(algorithmKey);
   const n = frame.heights.length;
   const step = frame.index > 0 ? steps[frame.index - 1] : undefined;
   const done = status === 'done';
@@ -839,19 +844,9 @@ export function CraneView({
         {statusLabel}
       </p>
 
-      {/* Complexity pills */}
-      {/* Top-left, not centred: the trolley runs along the rail across the top
-          of the frame and centred pills sat right on top of it. */}
-      <div className="pointer-events-none absolute left-0 right-0 top-3 z-10 flex flex-wrap justify-start gap-2 px-4">
-        <span className="rounded-full border border-accent/40 bg-accent-soft px-3 py-1 font-mono text-[11px] text-accent shadow-[var(--glow-accent)]">
-          TIME <strong className="font-semibold">{algorithm.complexity.average}</strong>
-          <span className="ml-1 text-muted">avg</span>
-        </span>
-        <span className="rounded-full border border-lime/40 bg-lime-soft px-3 py-1 font-mono text-[11px] text-lime shadow-[var(--glow-lime)]">
-          SPACE <strong className="font-semibold">{algorithm.complexity.space}</strong>
-        </span>
-      </div>
-
+      {/* No complexity pills here — the info panel beside the stage already
+          lists best/average/worst/space, so on-canvas pills were duplicate
+          furniture sitting in the trolley's path. */}
       <div className="relative min-h-[280px] flex-1">
         <Canvas
           dpr={[1, 2]}

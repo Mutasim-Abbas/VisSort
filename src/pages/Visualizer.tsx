@@ -23,6 +23,15 @@ const CraneView = lazy(() =>
   import('../components/three/CraneView').then((m) => ({ default: m.CraneView })),
 );
 
+/**
+ * Steps per second for each 1–5 speed level. The crane stages a full
+ * pick-and-place per step, so level 1 is a deliberate ~2.5s per step rather
+ * than the 1 step/s the raw slider used to bottom out at — the animation can
+ * never outrun the step interval without being cut off mid-lift.
+ */
+const STEP_RATE = [0.4, 0.7, 1.2, 2, 3.5] as const;
+const rateOf = (level: number) => STEP_RATE[Math.min(STEP_RATE.length, Math.max(1, level)) - 1];
+
 function isAlgorithmKey(v: string | null): v is AlgorithmKey {
   return v !== null && v in ALGORITHM_MAP;
 }
@@ -89,7 +98,9 @@ export default function Visualizer() {
   const isEmpty = array.length === 0;
 
   const steps = useMemo(() => buildSteps(algorithm.generator, array), [algorithm, array]);
-  const playback = usePlayback(array, steps, speed);
+  // The slider is a 1-5 level; the player and the views want a real rate.
+  const stepsPerSec = rateOf(speed);
+  const playback = usePlayback(array, steps, stepsPerSec);
   const { frame, status } = playback;
 
   // Changing structural inputs abandons a custom array (they're mutually exclusive).
@@ -335,7 +346,7 @@ export default function Visualizer() {
                   <CraneView
                     frame={frame}
                     steps={steps}
-                    speed={speed}
+                    speed={stepsPerSec}
                     status={status}
                     statusLabel={statusLabel}
                     algorithmKey={algorithmKey}
@@ -348,7 +359,7 @@ export default function Visualizer() {
                 </Suspense>
               )}
               {viewMode === 'array' && (
-                <ArrayView frame={frame} speed={speed} statusLabel={statusLabel} />
+                <ArrayView frame={frame} speed={stepsPerSec} statusLabel={statusLabel} />
               )}
               {viewMode === 'tree' && (
                 <TreeView
@@ -356,7 +367,7 @@ export default function Visualizer() {
                   input={array}
                   frame={frame}
                   steps={steps}
-                  speed={speed}
+                  speed={stepsPerSec}
                   statusLabel={statusLabel}
                 />
               )}

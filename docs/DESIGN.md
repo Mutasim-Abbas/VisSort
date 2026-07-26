@@ -616,12 +616,20 @@ reads as a prototype, which is what it looked like before.
 | Trolley | Wheeled carriage: amber housing, motor block, four rail wheels, hoist drum |
 | Cables | **Twin** cylinders in a group scaled in Y to span trolley → block |
 | Block | Sheave housing, amber spreader beam, dark machined under-plate, two hydraulic rams |
-| Jaws | Hinged: knuckle pin, finger, inward-turned tip, black rubber grip pad. Dimensions scale with `boxW`, so they stay chunky hardware on a small shelf instead of thin wire |
+| Jaws | Hinged: knuckle pin, finger, **outward**-flared heel, black rubber grip pad. Dimensions scale with `boxW`, so they stay chunky hardware on a small shelf instead of thin wire |
 | Camera | Fixed 3/4, fov 40, `[0, 3.5, 10.2]`, `lookAt(0, 2, 0)`, whisper of pointer parallax |
 | Lighting | Neutral key + fill so box tokens read true; amber/lime rim lights placed **in front** of the gantry (z ≈ 7.5) so they graze boxes instead of blowing out the legs |
 
-The complexity pills sit **top-left, not centred** — the trolley runs along the
-beam across the top of the frame, and centred pills sat directly on top of it.
+**Closed-jaw clearance is load-bearing geometry, not styling.** The closed
+half-width is `boxW/2 + fingerW/2 + PAD_T`, which puts the pad's inner face
+exactly on the box face and every other part of the gripper outside it. The heel
+flares **outward**; it used to turn inward and drove straight through the side of
+the column it was gripping. Tighten any of those three terms and the gripper
+buries itself in the box again.
+
+**No complexity pills on the canvas.** The info panel beside the stage already
+lists best/average/worst/space, so on-canvas pills were duplicate furniture —
+and being top-centred they sat directly in the trolley's path along the beam.
 
 Boxes always fill a constant `WORLD_W = 11`, so `slot = WORLD_W / n` and the
 camera never needs to move as `n` changes. Height maps
@@ -656,11 +664,16 @@ permanently in transit, motion read mushy, and the carry arc popped when it was
 finally snapped. It is now **one clock per step**, running `0 → 1` over a bounded
 duration and stopping, so every box lands exactly as the next step opens.
 
-`duration = min(0.92 × stepInterval, 1800 ms)` while playing, 850 ms when paused
-for manual stepping. It must fit inside the player's own interval or the next
-step cuts it off — which is why the speed slider now goes down to **0.25
-steps/s** (`MIN_SPEED`, quarter-step granularity): a full pick-and-place needs
-more than a second to read, and at 1 step/s it cannot get one.
+`duration = min(0.96 × stepInterval, 3000 ms)` while playing, 1100 ms when
+paused for manual stepping. It must fit inside the player's own interval or the
+next step cuts it off mid-grab — so **a slower machine means a slower step
+rate**, and the two cannot be tuned independently.
+
+The speed control is therefore a **1–5 level, not a raw step rate**
+(`STEP_RATE` in `pages/Visualizer.tsx` maps level → steps/s:
+`0.4, 0.7, 1.2, 2, 3.5`). Level 1 is ~2.5 s per step, giving the full
+pick-and-place room to read; exposing the real rate meant fractional slider
+values like 0.25 steps/s to reach the same place.
 
 **The pick-and-place**, as fractions of that timeline (`PH`):
 

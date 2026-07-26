@@ -17,11 +17,15 @@ interface Props {
   running: boolean;
 }
 
-// Quarter-steps at the bottom of the range: the 3D Crane plays a full
-// pick-and-place per step, which needs more than a second to read.
-const MIN_SPEED = 0.25;
-const MAX_SPEED = 200;
-const SPEED_STEP = 0.25;
+/**
+ * Speed is a 1–5 *level*, not a raw step rate — see `STEP_RATE` in
+ * `pages/Visualizer.tsx` for the seconds-per-step each level maps to. The crane
+ * plays a whole pick-and-place per step, so the useful range is a handful of
+ * slow rates; exposing raw steps/s meant fractional values like 0.25.
+ */
+const MIN_SPEED = 1;
+const MAX_SPEED = 5;
+const SPEED_STEP = 1;
 
 function Field({
   label,
@@ -174,7 +178,7 @@ export function Controls({
         />
       </Field>
 
-      <Field label={`Speed — ${speed} steps/s`} htmlFor="speed">
+      <Field label={`Speed — ${speed} of ${MAX_SPEED}`} htmlFor="speed">
         <Slider
           id="speed"
           min={MIN_SPEED}
