@@ -216,7 +216,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   const labels = useRef<(THREE.Mesh | null)[]>([]);
   const trolley = useRef<THREE.Group>(null);
   const clawGroup = useRef<THREE.Group>(null);
-  const strap = useRef<THREE.Mesh>(null);
+  const strap = useRef<THREE.Group>(null);
   const jawL = useRef<THREE.Group>(null);
   const jawR = useRef<THREE.Group>(null);
 
@@ -494,6 +494,12 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   });
 
   const postX = WORLD_W / 2 + 0.75;
+  // Grab hardware scales with the boxes it handles, so the jaws stay chunky
+  // machinery on a 6-box shelf instead of looking like thin wire.
+  const fingerW = Math.min(0.2, Math.max(0.075, boxW * 0.1));
+  const fingerH = Math.min(0.62, Math.max(0.34, boxW * 0.34));
+  const tipW = Math.min(0.4, Math.max(0.16, boxW * 0.22));
+  const knuckle = Math.min(0.11, Math.max(0.05, boxW * 0.062));
   const ids = useMemo(() => Array.from({ length: n }, (_, i) => i), [n]);
 
   return (
@@ -507,74 +513,181 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       <pointLight position={[-4.5, 2.4, 7.5]} intensity={12} color="#f5b417" distance={16} />
       <pointLight position={[4.5, 2.2, 7.5]} intensity={10} color="#8ce046" distance={16} />
 
-      {/* Shelf */}
-      <mesh position={[0, -0.2, 0]} receiveShadow>
-        <boxGeometry args={[WORLD_W + 1.6, 0.4, boxD + 1]} />
-        <meshStandardMaterial color="#39445c" metalness={0.5} roughness={0.55} />
-      </mesh>
-
-      {/* Gantry: two posts + top rail */}
-      {[-postX, postX].map((x) => (
-        <mesh key={x} position={[x, RAIL_Y / 2, 0]}>
-          <boxGeometry args={[0.16, RAIL_Y, 0.16]} />
-          <meshStandardMaterial color="#5a6884" metalness={0.7} roughness={0.35} />
+      {/* ---- Shelf: deck slab, inset working surface, front kerb ---- */}
+      <group>
+        <mesh position={[0, -0.26, 0]} receiveShadow>
+          <boxGeometry args={[WORLD_W + 1.6, 0.3, boxD + 1]} />
+          <meshStandardMaterial color="#2c3549" metalness={0.5} roughness={0.6} />
         </mesh>
-      ))}
-      <mesh position={[0, RAIL_Y, 0]}>
-        <boxGeometry args={[postX * 2 + 0.16, 0.16, 0.16]} />
-        <meshStandardMaterial color="#5a6884" metalness={0.7} roughness={0.35} />
-      </mesh>
+        <mesh position={[0, -0.08, 0]} receiveShadow>
+          <boxGeometry args={[WORLD_W + 1.35, 0.08, boxD + 0.8]} />
+          <meshStandardMaterial color="#46536e" metalness={0.65} roughness={0.4} />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[0, -0.12, s * (boxD / 2 + 0.4)]}>
+            <boxGeometry args={[WORLD_W + 1.5, 0.14, 0.07]} />
+            <meshStandardMaterial color="#5d6b8a" metalness={0.75} roughness={0.35} />
+          </mesh>
+        ))}
+      </group>
 
-      {/* Trolley + strap + claw */}
-      <group ref={trolley} position={[0, RAIL_Y, 0]}>
+      {/* ---- Gantry: box-section legs on feet, braced, carrying an I-beam ---- */}
+      {[-postX, postX].map((x) => (
+        <group key={x} position={[x, 0, 0]}>
+          <mesh position={[0, -0.05, 0]}>
+            <boxGeometry args={[0.5, 0.12, 0.5]} />
+            <meshStandardMaterial color="#3b465e" metalness={0.7} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, RAIL_Y / 2, 0]}>
+            <boxGeometry args={[0.2, RAIL_Y, 0.2]} />
+            <meshStandardMaterial color="#5a6884" metalness={0.78} roughness={0.32} />
+          </mesh>
+          {/* corner gusset up to the beam */}
+          <mesh position={[x > 0 ? -0.33 : 0.33, RAIL_Y - 0.36, 0]} rotation={[0, 0, Math.PI / 4]}>
+            <boxGeometry args={[0.1, 0.62, 0.14]} />
+            <meshStandardMaterial color="#4a5771" metalness={0.75} roughness={0.35} />
+          </mesh>
+          {/* hazard collar */}
+          <mesh position={[0, 0.42, 0]}>
+            <boxGeometry args={[0.23, 0.16, 0.23]} />
+            <meshStandardMaterial
+              color="#f5b417"
+              emissive="#f5b417"
+              emissiveIntensity={0.18}
+              metalness={0.5}
+              roughness={0.45}
+            />
+          </mesh>
+        </group>
+      ))}
+      {/* I-beam: bottom flange the trolley rides, web, top flange */}
+      <group position={[0, RAIL_Y, 0]}>
+        <mesh position={[0, 0.17, 0]}>
+          <boxGeometry args={[postX * 2 + 0.2, 0.1, 0.44]} />
+          <meshStandardMaterial color="#5a6884" metalness={0.78} roughness={0.32} />
+        </mesh>
         <mesh>
-          <boxGeometry args={[0.42, 0.22, 0.3]} />
+          <boxGeometry args={[postX * 2 + 0.2, 0.26, 0.14]} />
+          <meshStandardMaterial color="#46536e" metalness={0.7} roughness={0.4} />
+        </mesh>
+        <mesh position={[0, -0.17, 0]}>
+          <boxGeometry args={[postX * 2 + 0.2, 0.1, 0.4]} />
+          <meshStandardMaterial color="#5a6884" metalness={0.78} roughness={0.32} />
+        </mesh>
+        {/* end stops */}
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (postX - 0.06), -0.05, 0]}>
+            <boxGeometry args={[0.1, 0.3, 0.46]} />
+            <meshStandardMaterial color="#f5b417" metalness={0.5} roughness={0.45} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* ---- Trolley: wheeled carriage + hoist drum ---- */}
+      <group ref={trolley} position={[0, RAIL_Y, 0]}>
+        <mesh position={[0, 0.02, 0]}>
+          <boxGeometry args={[0.62, 0.3, 0.4]} />
           <meshStandardMaterial
             color="#f5b417"
             emissive="#f5b417"
-            emissiveIntensity={0.35}
-            metalness={0.6}
-            roughness={0.3}
+            emissiveIntensity={0.28}
+            metalness={0.62}
+            roughness={0.32}
           />
+        </mesh>
+        <mesh position={[0, 0.22, 0]}>
+          <boxGeometry args={[0.34, 0.16, 0.3]} />
+          <meshStandardMaterial color="#39435a" metalness={0.7} roughness={0.35} />
+        </mesh>
+        {/* rail wheels */}
+        {[-0.22, 0.22].map((wx) =>
+          [-0.17, 0.17].map((wz) => (
+            <mesh key={`${wx}:${wz}`} position={[wx, 0.19, wz]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.075, 0.075, 0.06, 14]} />
+              <meshStandardMaterial color="#2b3446" metalness={0.8} roughness={0.3} />
+            </mesh>
+          )),
+        )}
+        {/* hoist drum the cable spools onto */}
+        <mesh position={[0, -0.12, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.1, 0.1, 0.3, 16]} />
+          <meshStandardMaterial color="#8f9bb3" metalness={0.85} roughness={0.28} />
         </mesh>
       </group>
-      <mesh ref={strap} position={[0, RAIL_Y, 0]}>
-        <boxGeometry args={[0.035, 1, 0.035]} />
-        <meshStandardMaterial color="#8792a8" metalness={0.4} roughness={0.6} />
-      </mesh>
+
+      {/* ---- Twin hoist cables (group scales in Y to span trolley → block) ---- */}
+      <group ref={strap} position={[0, RAIL_Y, 0]}>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[0, 0, s * 0.09]}>
+            <cylinderGeometry args={[0.018, 0.018, 1, 8]} />
+            <meshStandardMaterial color="#9aa5bb" metalness={0.6} roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* ---- Lifting block: housing, spreader beam, hydraulics, jaws ---- */}
       <group ref={clawGroup} position={[0, CLAW_PARK_Y, 0]}>
+        {/* sheave housing where the cables terminate */}
+        <mesh position={[0, 0.2, 0]}>
+          <boxGeometry args={[0.3, 0.24, boxD * 0.5 + 0.12]} />
+          <meshStandardMaterial color="#39435a" metalness={0.75} roughness={0.32} />
+        </mesh>
+        {/* spreader beam */}
         <mesh>
-          <boxGeometry args={[Math.max(0.3, boxW * 0.9), 0.13, boxD * 0.85]} />
+          <boxGeometry args={[Math.max(0.36, boxW * 1.02), 0.16, boxD * 0.9]} />
           <meshStandardMaterial
             color="#f5b417"
             emissive="#f5b417"
-            emissiveIntensity={0.45}
-            metalness={0.65}
-            roughness={0.3}
+            emissiveIntensity={0.4}
+            metalness={0.66}
+            roughness={0.28}
           />
         </mesh>
-        {/* Jaws — each hinges from the underside of the head, so rotating the
+        {/* dark under-plate so the beam reads as a machined part, not a slab */}
+        <mesh position={[0, -0.1, 0]}>
+          <boxGeometry args={[Math.max(0.3, boxW * 0.86), 0.06, boxD * 0.72]} />
+          <meshStandardMaterial color="#2b3446" metalness={0.8} roughness={0.3} />
+        </mesh>
+        {/* hydraulic rams driving each jaw */}
+        {[-1, 1].map((s) => (
+          <mesh
+            key={s}
+            position={[s * Math.max(0.13, boxW * 0.3), -0.06, 0]}
+            rotation={[0, 0, s * -0.5]}
+          >
+            <cylinderGeometry args={[0.032, 0.032, 0.26, 10]} />
+            <meshStandardMaterial color="#c7cede" metalness={0.85} roughness={0.22} />
+          </mesh>
+        ))}
+        {/* Jaws — each hinges from the underside of the beam, so rotating the
             group swings the finger outward like a mouth opening. */}
-        <group ref={jawL} position={[-(boxW * 0.5 + 0.05), -0.05, 0]}>
-          <mesh position={[0, -0.19, 0]}>
-            <boxGeometry args={[0.075, 0.38, boxD * 0.7]} />
-            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
-          </mesh>
-          <mesh position={[0.055, -0.36, 0]}>
-            <boxGeometry args={[0.15, 0.075, boxD * 0.7]} />
-            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
-          </mesh>
-        </group>
-        <group ref={jawR} position={[boxW * 0.5 + 0.05, -0.05, 0]}>
-          <mesh position={[0, -0.19, 0]}>
-            <boxGeometry args={[0.075, 0.38, boxD * 0.7]} />
-            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
-          </mesh>
-          <mesh position={[-0.055, -0.36, 0]}>
-            <boxGeometry args={[0.15, 0.075, boxD * 0.7]} />
-            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
-          </mesh>
-        </group>
+        {[
+          { ref: jawL, s: -1 },
+          { ref: jawR, s: 1 },
+        ].map(({ ref, s }) => (
+          <group key={s} ref={ref} position={[s * (boxW * 0.5 + 0.05), -0.05, 0]}>
+            {/* knuckle pin */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[knuckle, knuckle, boxD * 0.78, 12]} />
+              <meshStandardMaterial color="#8f9bb3" metalness={0.85} roughness={0.25} />
+            </mesh>
+            {/* finger */}
+            <mesh position={[0, -fingerH / 2, 0]}>
+              <boxGeometry args={[fingerW, fingerH, boxD * 0.7]} />
+              <meshStandardMaterial color="#c7cede" metalness={0.72} roughness={0.32} />
+            </mesh>
+            {/* inward-turned tip */}
+            <mesh position={[-s * tipW * 0.34, -fingerH - 0.02, 0]}>
+              <boxGeometry args={[tipW, fingerW, boxD * 0.7]} />
+              <meshStandardMaterial color="#c7cede" metalness={0.72} roughness={0.32} />
+            </mesh>
+            {/* rubber grip pad on the gripping face */}
+            <mesh position={[-s * fingerW * 0.62, -fingerH * 0.55, 0]}>
+              <boxGeometry args={[fingerW * 0.42, fingerH * 0.72, boxD * 0.64]} />
+              <meshStandardMaterial color="#12161d" metalness={0.1} roughness={0.9} />
+            </mesh>
+          </group>
+        ))}
       </group>
 
       {/* Value boxes */}
@@ -727,7 +840,9 @@ export function CraneView({
       </p>
 
       {/* Complexity pills */}
-      <div className="pointer-events-none absolute left-0 right-0 top-3 z-10 flex flex-wrap justify-center gap-2 px-3">
+      {/* Top-left, not centred: the trolley runs along the rail across the top
+          of the frame and centred pills sat right on top of it. */}
+      <div className="pointer-events-none absolute left-0 right-0 top-3 z-10 flex flex-wrap justify-start gap-2 px-4">
         <span className="rounded-full border border-accent/40 bg-accent-soft px-3 py-1 font-mono text-[11px] text-accent shadow-[var(--glow-accent)]">
           TIME <strong className="font-semibold">{algorithm.complexity.average}</strong>
           <span className="ml-1 text-muted">avg</span>

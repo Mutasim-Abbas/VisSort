@@ -605,15 +605,23 @@ reel's colors.
 
 ### 11.2 Scene
 
+The rig is modelled as actual plant, not as primitives — a flat bar on a string
+reads as a prototype, which is what it looked like before.
+
 | Element | Spec |
 |---|---|
-| Shelf | `WORLD_W + 1.6` × 0.4 slab at y = −0.2, `#39445c`, metalness 0.5 |
-| Gantry | Two posts + top rail at `RAIL_Y = 4.25`, `#5a6884`, metalness 0.7 |
-| Trolley | Amber (`--accent`) block riding the rail at the claw's x |
-| Strap | Single scaled cylinder from rail down to the claw (length = `RAIL_Y − clawY`) |
-| Claw | Amber head + two prongs, parked at `CLAW_PARK_Y = 3.6` |
-| Camera | Fixed 3/4, fov 40, `[0, 3.2, 9.4]`, `lookAt(0, 1.75, 0)`, whisper of pointer parallax |
-| Lighting | Neutral key + fill so box tokens read true; amber/lime rim lights placed **in front** of the gantry (z ≈ 7.5) so they graze boxes instead of blowing out the posts |
+| Shelf | Deck slab + inset machined working surface + front/back kerb rails |
+| Legs | Box-section columns on base plates, corner gussets into the beam, amber hazard collars |
+| Beam | An **I-beam** at `RAIL_Y = 5` — top flange, web, bottom flange — with amber end stops |
+| Trolley | Wheeled carriage: amber housing, motor block, four rail wheels, hoist drum |
+| Cables | **Twin** cylinders in a group scaled in Y to span trolley → block |
+| Block | Sheave housing, amber spreader beam, dark machined under-plate, two hydraulic rams |
+| Jaws | Hinged: knuckle pin, finger, inward-turned tip, black rubber grip pad. Dimensions scale with `boxW`, so they stay chunky hardware on a small shelf instead of thin wire |
+| Camera | Fixed 3/4, fov 40, `[0, 3.5, 10.2]`, `lookAt(0, 2, 0)`, whisper of pointer parallax |
+| Lighting | Neutral key + fill so box tokens read true; amber/lime rim lights placed **in front** of the gantry (z ≈ 7.5) so they graze boxes instead of blowing out the legs |
+
+The complexity pills sit **top-left, not centred** — the trolley runs along the
+beam across the top of the frame, and centred pills sat directly on top of it.
 
 Boxes always fill a constant `WORLD_W = 11`, so `slot = WORLD_W / n` and the
 camera never needs to move as `n` changes. Height maps
