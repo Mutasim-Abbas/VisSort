@@ -678,8 +678,24 @@ more than a second to read, and at 1 step/s it cannot get one.
   is tiny, so `atan2` turned a few centimetres of lag into a ~45° tilt and the rig
   read as a snapped, flailing arm. Removed deliberately; do not reintroduce
   without clamping against the *rendered* endpoints, not just the angle.
-- With nothing in flight the claw hovers over the compared pair, the written
-  index, or the pivot, else returns to park — a soft chase, not the timeline.
+**The empty hook follows the algorithm's cursor.** It stands directly over the
+column currently being examined — clear of that column's own top, so it visibly
+waits above each one in turn — and walks the shelf column by column rather than
+floating to the midpoint of a compared pair.
+
+Picking that column is not as simple as "always `step.i`": the two compared
+indices are not interchangeable across algorithms. Quicksort scans with `i`
+against a **fixed** `j` (the pivot at `hi`); selection sort scans with `j`
+against a **fixed** `i` (the running minimum). Anchoring on the wrong one leaves
+the crane parked motionless for a whole pass. So the cursor is **whichever index
+actually moved since the previous comparison**; when both move (bubble's adjacent
+pair, merge's two runs) either reads as a sweep and the left one is used. Writes
+and pivots use their own index, a swap ends over its destination, and
+`divide`/`combine` leave the cursor where it was.
+
+The hook's own travel is a bounded two-beat move on the same clock — traverse
+along the rail, then take up or pay out the hoist — not an exponential chase.
+Once it arrives it hangs and breathes rather than freezing dead.
 
 | Step | Behaviour | Label |
 |---|---|---|

@@ -151,6 +151,17 @@ interface Motion {
   /** Where the claw was when this step opened, so it eases in rather than jumps. */
   clawFromX: number;
   clawFromY: number;
+  /**
+   * The array position the hook stands over — the algorithm's own cursor, so
+   * the machine walks the shelf column by column instead of hovering between
+   * two of them. The two compared indices are not interchangeable: quicksort
+   * scans with `i` against a fixed `j` (the pivot), selection scans with `j`
+   * against a fixed `i` (the running minimum). So the cursor is whichever
+   * index actually moved since the previous comparison.
+   */
+  focus: number;
+  prevI: number;
+  prevJ: number;
   /** Progress 0→1, and the duration in seconds this step animates over. */
   t: number;
   dur: number;
@@ -220,6 +231,9 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
     liftAmp: 0,
     clawFromX: 0,
     clawFromY: CLAW_PARK_Y,
+    focus: 0,
+    prevI: -1,
+    prevJ: -1,
     t: 1,
     dur: 0,
     index: -1,
@@ -242,6 +256,8 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       m.t = 1;
       m.dur = 0;
       m.carriedId = -1;
+      m.focus = 0;
+      m.prevI = m.prevJ = -1;
       for (let id = 0; id < n; id++) {
         const x = xOfPos(frame.posOf[id]);
         const h = hOfValue(frame.heights[id]);
@@ -285,6 +301,27 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       }
       m.clawFromX = clawX.current;
       m.clawFromY = clawY.current;
+
+      // Follow the algorithm's cursor across the shelf.
+      if (step) {
+        if (step.type === 'compare') {
+          const movedI = step.i !== m.prevI;
+          const movedJ = step.j !== m.prevJ;
+          // Exactly one of them advancing identifies the scanning pointer; when
+          // both move (bubble's adjacent pair, merge's two runs) either reads as
+          // a sweep, so take the left one.
+          m.focus = movedI && !movedJ ? step.i : movedJ && !movedI ? step.j : step.i;
+          m.prevI = step.i;
+          m.prevJ = step.j;
+        } else if (step.type === 'overwrite' || step.type === 'markPivot') {
+          m.focus = step.index;
+        } else if (step.type === 'swap') {
+          m.focus = step.j;
+        } else if (step.type === 'markSorted' && step.indices.length > 0) {
+          m.focus = step.indices[step.indices.length - 1];
+        }
+        m.focus = Math.max(0, Math.min(n - 1, m.focus));
+      }
 
       // The animation must finish inside the player's own step interval or the
       // next step interrupts it. When paused (manual stepping) there is no
@@ -365,20 +402,15 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       // Empty hook. It still moves like a machine rather than snapping at a
       // target: traverse along the rail first, then take up or pay out the
       // hoist — the same two-beat motion as a real gantry, on the same clock.
+      // Stand directly over the column the algorithm is looking at, just clear
+      // of its top — so the machine visibly waits above each one in turn.
       let toX = m.clawFromX;
       let toY = CLAW_PARK_Y;
       if (step) {
-        if (step.type === 'compare') {
-          toX = (xOfPos(step.i) + xOfPos(step.j)) / 2;
-          toY = CLAW_PARK_Y - 0.45;
-        } else if (step.type === 'overwrite') {
-          toX = xOfPos(step.index);
-          const id = frame.posOf.findIndex((p) => p === step.index);
-          toY = (id >= 0 ? m.curH[id] : 1) + JAW_GAP;
-        } else if (step.type === 'markPivot') {
-          toX = xOfPos(step.index);
-          toY = CLAW_PARK_Y - 0.25;
-        }
+        toX = xOfPos(m.focus);
+        const overId = frame.posOf.findIndex((p) => p === m.focus);
+        const top = overId >= 0 ? m.curH[overId] : 1;
+        toY = Math.min(CLAW_PARK_Y, top + JAW_GAP + 0.2);
       }
       cmdX = mix(m.clawFromX, toX, easeInOut(seg(t, 0, 0.55)));
       cmdY = mix(m.clawFromY, toY, easeInOut(seg(t, 0.4, 0.9)));
