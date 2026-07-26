@@ -17,10 +17,21 @@ interface Props {
   running: boolean;
 }
 
-const MIN_SPEED = 1;
+// Quarter-steps at the bottom of the range: the 3D Crane plays a full
+// pick-and-place per step, which needs more than a second to read.
+const MIN_SPEED = 0.25;
 const MAX_SPEED = 200;
+const SPEED_STEP = 0.25;
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={htmlFor} className="text-[11px] uppercase tracking-wide text-muted">
@@ -67,6 +78,7 @@ function Slider({
   min,
   max,
   value,
+  step = 1,
   disabled,
   onChange,
 }: {
@@ -74,6 +86,7 @@ function Slider({
   min: number;
   max: number;
   value: number;
+  step?: number;
   disabled?: boolean;
   onChange: (n: number) => void;
 }) {
@@ -84,7 +97,7 @@ function Slider({
       type="range"
       min={min}
       max={max}
-      step={1}
+      step={step}
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value))}
@@ -151,11 +164,25 @@ export function Controls({
       </Field>
 
       <Field label={`Array size — ${size}`} htmlFor="size">
-        <Slider id="size" min={MIN_SIZE} max={MAX_SIZE} value={size} disabled={running} onChange={onSize} />
+        <Slider
+          id="size"
+          min={MIN_SIZE}
+          max={MAX_SIZE}
+          value={size}
+          disabled={running}
+          onChange={onSize}
+        />
       </Field>
 
       <Field label={`Speed — ${speed} steps/s`} htmlFor="speed">
-        <Slider id="speed" min={MIN_SPEED} max={MAX_SPEED} value={speed} onChange={onSpeed} />
+        <Slider
+          id="speed"
+          min={MIN_SPEED}
+          max={MAX_SPEED}
+          step={SPEED_STEP}
+          value={speed}
+          onChange={onSpeed}
+        />
       </Field>
     </div>
   );

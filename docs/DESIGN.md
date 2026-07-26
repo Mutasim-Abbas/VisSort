@@ -630,18 +630,49 @@ hardcoded — the scene cannot drift from `tokens.css`.
 Materials are born white, so the **first frame snaps** to the state color
 (`userData.tinted`) — otherwise every box flashes white on mount.
 
-### 11.4 Choreography
+### 11.4 Choreography — a bounded per-step timeline
 
-Driven entirely by `steps[frame.index − 1]`; the engine is untouched. Because the
-`Frame` has already applied the step, each box lerps from where it is currently
-rendered toward its post-step transform (`k = 1 − e^(−12·Δt)`, frame-rate
-independent) and the claw is animated on top to read as the cause.
+Driven entirely by `steps[frame.index − 1]`; the engine is untouched.
 
-- **Carry arc** — `lift = sin(π·p) · LIFT`, peaking mid-travel, scaled by distance.
+**Not a chase.** The first implementation lerped every box toward its target with
+exponential smoothing. An exponential chase never actually *arrives*, so at any
+real playback speed the next step interrupted the previous one: boxes were
+permanently in transit, motion read mushy, and the carry arc popped when it was
+finally snapped. It is now **one clock per step**, running `0 → 1` over a bounded
+duration and stopping, so every box lands exactly as the next step opens.
+
+`duration = min(0.92 × stepInterval, 1800 ms)` while playing, 850 ms when paused
+for manual stepping. It must fit inside the player's own interval or the next
+step cuts it off — which is why the speed slider now goes down to **0.25
+steps/s** (`MIN_SPEED`, quarter-step granularity): a full pick-and-place needs
+more than a second to read, and at 1 step/s it cannot get one.
+
+**The pick-and-place**, as fractions of that timeline (`PH`):
+
+| Window | Phase |
+|---|---|
+| 0 → .14 | Trolley runs along the rail over the box; height unchanged |
+| .14 → .30 | Hoist pays out; the open claw descends onto the box |
+| .30 → .38 | Jaws close on it |
+| .38 → .52 | Box is hoisted clear of the shelf |
+| .52 → .72 | Trolley carries it across — **this is the only window in which any box moves sideways** |
+| .72 → .86 | Box is lowered onto its new slot |
+| .86 → .93 | Jaws release |
+| .93 → 1 | Empty hook draws back up to travel height |
+
 - **Only the box travelling right is lifted**; its partner slides along the shelf
-  beneath it. Lifting both makes them intersect mid-air — verified visually.
-- **Claw** rides the lifted box; with nothing in flight it hovers over the
-  compared pair, the written index, or the pivot, else returns to park.
+  beneath it in the same window. Lifting both makes them intersect mid-air.
+- The gripped box is **pinned to the hook** between `grip` and `placed`, with the
+  pin eased out so it lands exactly on its slot rather than near it.
+- Lift height is clamped to the headroom under the rail, so hoisting a tall box
+  never drives the claw through the gantry.
+- **The cable hangs plumb** — the trolley tracks the hook's x exactly. An earlier
+  version let the hook trail and tilted the cable; near the rail the vertical run
+  is tiny, so `atan2` turned a few centimetres of lag into a ~45° tilt and the rig
+  read as a snapped, flailing arm. Removed deliberately; do not reintroduce
+  without clamping against the *rendered* endpoints, not just the angle.
+- With nothing in flight the claw hovers over the compared pair, the written
+  index, or the pivot, else returns to park — a soft chase, not the timeline.
 
 | Step | Behaviour | Label |
 |---|---|---|

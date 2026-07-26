@@ -26,11 +26,42 @@ const SNAP_SPEED = 20;
 /** World-space width the shelf of boxes always fills, whatever `n` is. */
 const WORLD_W = 11;
 const BOX_H_MIN = 0.32;
-const BOX_H_MAX = 3.2;
-const RAIL_Y = 4.25;
-const CLAW_PARK_Y = 3.6;
-/** Peak height of the carry arc, above the taller of the two boxes. */
+// Boxes stay short enough that even the tallest can be hoisted clear of the
+// shelf without the claw punching through the rail (see the headroom clamp).
+const BOX_H_MAX = 2.75;
+const RAIL_Y = 5;
+const CLAW_PARK_Y = 4.15;
+/** How high above the shelf the claw carries a box. */
 const LIFT = 1.15;
+/** Gap between the claw head and the top face of the box it is gripping. */
+const JAW_GAP = 0.3;
+
+/**
+ * The pick-and-place, as fractions of one step's timeline. The claw descends
+ * with its jaws open, closes them on the box, lifts it clear of the shelf,
+ * carries it across, sets it down, releases, and retracts. The box itself is
+ * moved by these same phases, so it never drifts independently of the grab.
+ */
+const PH = {
+  /** Trolley runs along the rail to sit over the box — height unchanged. */
+  approach: 0.14,
+  /** Hoist pays out; the open claw comes down onto the box. */
+  descend: 0.3,
+  /** Jaws close on it. */
+  grip: 0.38,
+  /** Box is hoisted clear of the shelf. */
+  lifted: 0.52,
+  /** Trolley carries it across to the destination slot. */
+  carried: 0.72,
+  /** Box is lowered back onto the shelf. */
+  placed: 0.86,
+  /** Jaws release. */
+  released: 0.93,
+} as const;
+
+/** Normalized progress through a sub-window of the timeline. */
+const seg = (t: number, a: number, b: number) => Math.min(1, Math.max(0, (t - a) / (b - a)));
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 type BoxColors = Record<BarState, THREE.Color>;
 
@@ -89,18 +120,49 @@ interface SceneProps {
   snap: boolean;
   reduced: boolean;
   done: boolean;
+  /** Milliseconds the player spends on one step — the motion must fit inside it. */
+  stepMs: number;
+  playing: boolean;
 }
 
-/** Per-box interpolation state, kept out of React so useFrame can mutate it. */
+/**
+ * Per-step animation timeline, kept out of React so useFrame can mutate it.
+ *
+ * Every box is animated on ONE shared clock that runs `0 → 1` across the step
+ * and then stops. This is deliberately not a "chase the target" lerp: an
+ * exponential chase never actually arrives, so at any real playback speed the
+ * next step interrupts the previous one and every box is permanently in
+ * transit — motion reads mushy and the carry arc pops when it is finally
+ * snapped. A bounded timeline lands each box exactly as the next step begins.
+ */
 interface Motion {
-  curX: number[];
+  /** Where this step started (world x / height), and where it ends. */
   fromX: number[];
-  tgtX: number[];
+  toX: number[];
+  fromH: number[];
+  toH: number[];
+  /** Live values, also the `from` of the next step if it interrupts this one. */
+  curX: number[];
   curH: number[];
-  lift: number[];
+  /** The single box the claw carries this step; -1 when nothing is lifted. */
+  carriedId: number;
+  /** Arc height for the carried box, scaled by how far it travels. */
+  liftAmp: number;
+  /** Where the claw was when this step opened, so it eases in rather than jumps. */
+  clawFromX: number;
+  clawFromY: number;
+  /** Progress 0→1, and the duration in seconds this step animates over. */
+  t: number;
+  dur: number;
+  /** The frame index this timeline was built for, and the array identity. */
+  index: number;
+  key: string;
 }
 
-function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: SceneProps) {
   const n = frame.heights.length;
   const colors = useMemo(readColors, []);
 
@@ -144,67 +206,188 @@ function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
   const trolley = useRef<THREE.Group>(null);
   const clawGroup = useRef<THREE.Group>(null);
   const strap = useRef<THREE.Mesh>(null);
+  const jawL = useRef<THREE.Group>(null);
+  const jawR = useRef<THREE.Group>(null);
 
-  // Reallocate interpolation state whenever the array size changes.
-  const motion = useRef<Motion>({ curX: [], fromX: [], tgtX: [], curH: [], lift: [] });
-  const sizeKey = `${n}:${maxValue}`;
-  const lastSize = useRef('');
-  if (lastSize.current !== sizeKey) {
-    lastSize.current = sizeKey;
-    const m: Motion = { curX: [], fromX: [], tgtX: [], curH: [], lift: [] };
-    for (let id = 0; id < n; id++) {
-      const x = xOfPos(frame.posOf[id]);
-      m.curX[id] = x;
-      m.fromX[id] = x;
-      m.tgtX[id] = x;
-      m.curH[id] = hOfValue(frame.heights[id]);
-      m.lift[id] = 0;
-    }
-    motion.current = m;
-  }
+  const motion = useRef<Motion>({
+    fromX: [],
+    toX: [],
+    fromH: [],
+    toH: [],
+    curX: [],
+    curH: [],
+    carriedId: -1,
+    liftAmp: 0,
+    clawFromX: 0,
+    clawFromY: CLAW_PARK_Y,
+    t: 1,
+    dur: 0,
+    index: -1,
+    key: '',
+  });
 
   const clawX = useRef(0);
   const clawY = useRef(CLAW_PARK_Y);
 
   useFrame((_, delta) => {
     const m = motion.current;
-    // Frame-rate independent smoothing; `snap`/reduced-motion jump straight there.
     const instant = snap || reduced;
-    const k = instant ? 1 : 1 - Math.exp(-12 * Math.min(delta, 0.05));
+    const key = `${n}:${maxValue}`;
 
-    let carryX: number | null = null;
-    let carryTop = 0;
-    let maxLift = 0;
+    // A new array (or a new size) re-seeds everything in place — no tweening
+    // between two unrelated data sets.
+    if (m.key !== key) {
+      m.key = key;
+      m.index = frame.index;
+      m.t = 1;
+      m.dur = 0;
+      m.carriedId = -1;
+      for (let id = 0; id < n; id++) {
+        const x = xOfPos(frame.posOf[id]);
+        const h = hOfValue(frame.heights[id]);
+        m.fromX[id] = m.toX[id] = m.curX[id] = x;
+        m.fromH[id] = m.toH[id] = m.curH[id] = h;
+      }
+      m.fromX.length = m.toX.length = m.curX.length = n;
+      m.fromH.length = m.toH.length = m.curH.length = n;
+    }
 
-    for (let id = 0; id < n; id++) {
-      const tgtX = xOfPos(frame.posOf[id]);
-      if (tgtX !== m.tgtX[id]) {
+    // Open a fresh timeline whenever the player moved to another step.
+    if (m.index !== frame.index) {
+      // Scrubbing or resetting jumps more than one step — land immediately
+      // rather than animating through positions the player never showed.
+      const jumped = Math.abs(frame.index - m.index) > 1;
+      m.index = frame.index;
+      m.carriedId = -1;
+      m.liftAmp = 0;
+
+      let widest = 0;
+      for (let id = 0; id < n; id++) {
         m.fromX[id] = m.curX[id];
-        m.tgtX[id] = tgtX;
-      }
-      m.curX[id] += (tgtX - m.curX[id]) * k;
-      if (Math.abs(tgtX - m.curX[id]) < 0.0015) m.curX[id] = tgtX;
+        m.fromH[id] = m.curH[id];
+        m.toX[id] = xOfPos(frame.posOf[id]);
+        m.toH[id] = hOfValue(frame.heights[id]);
 
-      const tgtH = hOfValue(frame.heights[id]);
-      m.curH[id] += (tgtH - m.curH[id]) * k;
-
-      // Carry arc: peaks halfway through the travel, scaled by how far it goes.
-      // Only the box travelling RIGHT is lifted — its partner slides along the
-      // shelf beneath it. Lifting both would make them pass through each other.
-      const span = Math.abs(m.tgtX[id] - m.fromX[id]);
-      const carried = m.tgtX[id] > m.fromX[id];
-      let lift = 0;
-      if (!instant && carried && span > 0.001) {
-        const p = Math.min(1, Math.abs(m.curX[id] - m.fromX[id]) / span);
-        lift = Math.sin(Math.PI * p) * LIFT * Math.min(1, span / Math.max(slot, 0.001));
+        // Only the box travelling RIGHT is craned over; its partner slides
+        // along the shelf beneath it. Lifting both makes them intersect.
+        const span = m.toX[id] - m.fromX[id];
+        if (span > 0.001 && span > widest) {
+          widest = span;
+          m.carriedId = id;
+        }
       }
-      m.lift[id] = lift;
-      if (lift > maxLift) {
-        maxLift = lift;
-        carryX = m.curX[id];
-        carryTop = lift + m.curH[id];
+      if (m.carriedId >= 0) {
+        // Longer journeys ride higher, but never so high that the claw head
+        // would pass through the top rail.
+        const want = LIFT * Math.min(1.4, widest / Math.max(slot, 0.001));
+        const headroom = RAIL_Y - 0.3 - m.fromH[m.carriedId] - JAW_GAP;
+        m.liftAmp = Math.max(0.3, Math.min(want, headroom));
       }
+      m.clawFromX = clawX.current;
+      m.clawFromY = clawY.current;
 
+      // The animation must finish inside the player's own step interval or the
+      // next step interrupts it. When paused (manual stepping) there is no
+      // interval to respect, so use a comfortable fixed beat.
+      // Use nearly the whole step so the seven phases have room to read; the
+      // cap only stops very slow playback from feeling sluggish.
+      const budget = playing ? Math.min(stepMs * 0.92, 1800) : 850;
+      m.dur = instant || jumped ? 0 : budget / 1000;
+      m.t = m.dur > 0 ? 0 : 1;
+    }
+
+    if (m.t < 1) m.t = m.dur > 0 ? Math.min(1, m.t + delta / m.dur) : 1;
+    const t = m.t;
+    const cid = m.carriedId;
+
+    // Boxes only travel sideways while the claw is actually carrying, so the
+    // lifted box and the partner sliding beneath it move in the same window.
+    const tp = cid >= 0 ? easeInOut(seg(t, PH.lifted, PH.carried)) : easeInOut(t);
+    const th = easeOut(cid >= 0 ? seg(t, PH.grip, PH.placed) : t);
+
+    // Vertical profile of the grabbed box: still → rises → held → set down.
+    let carryLift = 0;
+    if (cid >= 0) {
+      if (t < PH.grip) carryLift = 0;
+      else if (t < PH.lifted) carryLift = easeInOut(seg(t, PH.grip, PH.lifted)) * m.liftAmp;
+      else if (t < PH.carried) carryLift = m.liftAmp;
+      else if (t < PH.placed)
+        carryLift = (1 - easeInOut(seg(t, PH.carried, PH.placed))) * m.liftAmp;
+    }
+
+    // Solve the timeline first — the crane is solved against these values, and
+    // the gripped box is then re-pinned to wherever the claw actually ended up.
+    for (let id = 0; id < n; id++) {
+      m.curX[id] = m.fromX[id] + (m.toX[id] - m.fromX[id]) * tp;
+      m.curH[id] = m.fromH[id] + (m.toH[id] - m.fromH[id]) * th;
+    }
+
+    // ---- Claw ------------------------------------------------------------
+    // While carrying, the claw is driven by the same phase clock as the box so
+    // the two are rigidly attached: it reaches down to the box, grips, rises
+    // with it, travels, sets it down, lets go, and retracts. Everything else
+    // (hovering over a comparison, a write, a pivot) is a soft chase.
+    let jaw = 1; // 1 = mouth open, 0 = clamped on the box
+
+    // `cmd` is where the trolley is commanded to be; the hook is allowed to
+    // trail behind it, which is what puts a real angle in the cable.
+    let cmdX = clawX.current;
+    let cmdY = CLAW_PARK_Y;
+    let lagRate = 14;
+
+    if (cid >= 0 && !instant) {
+      lagRate = 30;
+      // Hook height once the claw is engaged: it simply rides the box top.
+      const onBox = carryLift + m.curH[cid] + JAW_GAP;
+      if (t < PH.approach) {
+        // Run along the rail at travel height — no hoisting while traversing.
+        const e = easeInOut(seg(t, 0, PH.approach));
+        cmdX = mix(m.clawFromX, m.curX[cid], e);
+        cmdY = mix(m.clawFromY, CLAW_PARK_Y, e);
+      } else if (t < PH.descend) {
+        // Pay out the hoist straight down onto the box.
+        cmdX = m.curX[cid];
+        cmdY = mix(CLAW_PARK_Y, onBox, easeInOut(seg(t, PH.approach, PH.descend)));
+      } else if (t < PH.released) {
+        cmdX = m.curX[cid];
+        cmdY = onBox;
+        if (t < PH.grip) jaw = 1 - easeInOut(seg(t, PH.descend, PH.grip));
+        else if (t < PH.placed) jaw = 0;
+        else jaw = easeInOut(seg(t, PH.placed, PH.released));
+      } else {
+        // Let go and draw the empty hook back up to travel height.
+        cmdX = m.curX[cid];
+        cmdY = mix(onBox, CLAW_PARK_Y, easeInOut(seg(t, PH.released, 1)));
+      }
+    } else if (step && !instant) {
+      if (step.type === 'compare') {
+        cmdX = (xOfPos(step.i) + xOfPos(step.j)) / 2;
+        cmdY = CLAW_PARK_Y - 0.35;
+      } else if (step.type === 'overwrite') {
+        cmdX = xOfPos(step.index);
+        const id = frame.posOf.findIndex((p) => p === step.index);
+        cmdY = (id >= 0 ? m.curH[id] : 1) + JAW_GAP;
+      } else if (step.type === 'markPivot') {
+        cmdX = xOfPos(step.index);
+      }
+    }
+
+    // Hoisting is rigid; the hook swings horizontally.
+    const ck = instant ? 1 : 1 - Math.exp(-lagRate * Math.min(delta, 0.05));
+    clawX.current += (cmdX - clawX.current) * ck;
+    clawY.current +=
+      (cmdY - clawY.current) * (instant ? 1 : 1 - Math.exp(-30 * Math.min(delta, 0.05)));
+
+    // The gripped box hangs off the hook and follows it exactly. Release the
+    // pin as it is set down so it lands precisely on its slot.
+    if (cid >= 0 && t >= PH.grip && !instant) {
+      const pin = 1 - easeInOut(seg(t, PH.carried, PH.placed));
+      m.curX[cid] = mix(m.curX[cid], clawX.current, pin);
+    }
+
+    // Render the boxes now that the crane has been solved.
+    for (let id = 0; id < n; id++) {
+      const lift = id === cid ? carryLift : 0;
       const g = groups.current[id];
       if (g) {
         g.position.x = m.curX[id];
@@ -223,7 +406,7 @@ function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
         const state = frame.state[id];
         const target = colors[state] ?? colors.default;
         // Materials are born white; snap the first frame so no box flashes.
-        const cf = instant || !mat.userData.tinted ? 1 : 0.22;
+        const cf = instant || !mat.userData.tinted ? 1 : Math.min(1, delta * 14);
         mat.userData.tinted = true;
         mat.color.lerp(target, cf);
         mat.emissive.lerp(target, cf);
@@ -231,35 +414,27 @@ function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
       }
     }
 
-    // Claw: rides the box it is carrying, else hovers over the compared pair.
-    let targetClawX = clawX.current;
-    let targetClawY = CLAW_PARK_Y;
-    if (carryX !== null) {
-      targetClawX = carryX;
-      targetClawY = carryTop + 0.42;
-    } else if (step && !instant) {
-      if (step.type === 'compare') {
-        targetClawX = (xOfPos(step.i) + xOfPos(step.j)) / 2;
-        targetClawY = CLAW_PARK_Y - 0.35;
-      } else if (step.type === 'overwrite') {
-        targetClawX = xOfPos(step.index);
-        const id = frame.posOf.findIndex((p) => p === step.index);
-        targetClawY = (id >= 0 ? m.curH[id] : 1) + 0.5;
-      } else if (step.type === 'markPivot') {
-        targetClawX = xOfPos(step.index);
-      }
+    // Jaws hinge from the underside of the head and splay outward when open.
+    const halfW = Math.max(0.16, boxW * 0.5) + 0.05;
+    if (jawL.current) {
+      jawL.current.position.x = -(halfW + jaw * 0.12);
+      jawL.current.rotation.z = jaw * 0.5;
     }
-    const ck = instant ? 1 : 1 - Math.exp(-9 * Math.min(delta, 0.05));
-    clawX.current += (targetClawX - clawX.current) * ck;
-    clawY.current += (targetClawY - clawY.current) * ck;
+    if (jawR.current) {
+      jawR.current.position.x = halfW + jaw * 0.12;
+      jawR.current.rotation.z = -jaw * 0.5;
+    }
 
+    // The trolley sits directly above the hook, so the hoist cable hangs plumb.
+    // (An earlier version let the hook trail and tilted the cable; near the rail
+    // the vertical run is tiny, so any lag read as a snapped, flailing arm.)
     if (trolley.current) trolley.current.position.x = clawX.current;
     if (clawGroup.current) {
       clawGroup.current.position.x = clawX.current;
       clawGroup.current.position.y = clawY.current;
     }
     if (strap.current) {
-      const len = Math.max(0.01, RAIL_Y - clawY.current);
+      const len = Math.max(0.05, RAIL_Y - clawY.current);
       strap.current.position.x = clawX.current;
       strap.current.position.y = clawY.current + len / 2;
       strap.current.scale.y = len;
@@ -326,12 +501,28 @@ function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
             roughness={0.3}
           />
         </mesh>
-        {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * boxW * 0.46, -0.2, 0]}>
-            <boxGeometry args={[0.07, 0.34, boxD * 0.7]} />
+        {/* Jaws — each hinges from the underside of the head, so rotating the
+            group swings the finger outward like a mouth opening. */}
+        <group ref={jawL} position={[-(boxW * 0.5 + 0.05), -0.05, 0]}>
+          <mesh position={[0, -0.19, 0]}>
+            <boxGeometry args={[0.075, 0.38, boxD * 0.7]} />
             <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
           </mesh>
-        ))}
+          <mesh position={[0.055, -0.36, 0]}>
+            <boxGeometry args={[0.15, 0.075, boxD * 0.7]} />
+            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
+          </mesh>
+        </group>
+        <group ref={jawR} position={[boxW * 0.5 + 0.05, -0.05, 0]}>
+          <mesh position={[0, -0.19, 0]}>
+            <boxGeometry args={[0.075, 0.38, boxD * 0.7]} />
+            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
+          </mesh>
+          <mesh position={[-0.055, -0.36, 0]}>
+            <boxGeometry args={[0.15, 0.075, boxD * 0.7]} />
+            <meshStandardMaterial color="#c7cede" metalness={0.7} roughness={0.35} />
+          </mesh>
+        </group>
       </group>
 
       {/* Value boxes */}
@@ -387,14 +578,14 @@ function CraneScene({ frame, step, snap, reduced, done }: SceneProps) {
 function CameraRig({ reduced, done }: { reduced: boolean; done: boolean }) {
   useFrame(({ camera, pointer, clock }) => {
     if (reduced) {
-      camera.position.set(0, 3.2, 9.4);
+      camera.position.set(0, 3.5, 10.2);
     } else {
       const bob = done ? Math.sin(clock.getElapsedTime() * 1.5) * 0.1 : 0;
       camera.position.x += (pointer.x * 0.9 - camera.position.x) * 0.03;
-      camera.position.y += (3.2 + bob + pointer.y * 0.35 - camera.position.y) * 0.03;
-      camera.position.z += (9.4 - camera.position.z) * 0.05;
+      camera.position.y += (3.5 + bob + pointer.y * 0.35 - camera.position.y) * 0.03;
+      camera.position.z += (10.2 - camera.position.z) * 0.05;
     }
-    camera.lookAt(0, 1.75, 0);
+    camera.lookAt(0, 2, 0);
   });
   return null;
 }
@@ -497,7 +688,7 @@ export function CraneView({
       <div className="relative min-h-[280px] flex-1">
         <Canvas
           dpr={[1, 2]}
-          camera={{ position: [0, 3.2, 9.4], fov: 40 }}
+          camera={{ position: [0, 3.5, 10.2], fov: 40 }}
           gl={{ antialias: true, alpha: true }}
           // Measure immediately. With r3f's default 200ms debounce, toggling
           // view modes faster than that drops the pending measurement and the
@@ -510,6 +701,8 @@ export function CraneView({
             snap={speed >= SNAP_SPEED}
             reduced={reduced}
             done={done}
+            stepMs={1000 / Math.max(0.05, speed)}
+            playing={status === 'playing'}
           />
         </Canvas>
 
