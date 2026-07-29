@@ -1,20 +1,17 @@
-import type { AlgorithmKey } from '../engine/registry';
-import { TREE_CAPABLE, type ViewMode } from './viewMode';
+import type { ViewMode } from './viewMode';
 
 interface Props {
   mode: ViewMode;
   onMode: (mode: ViewMode) => void;
-  algorithmKey: AlgorithmKey;
 }
 
-const OPTIONS: { key: ViewMode; label: string }[] = [
-  { key: 'columns', label: 'Columns' },
-  { key: 'array', label: 'Array' },
-  { key: 'tree', label: 'Tree' },
+const OPTIONS: { key: ViewMode; label: string; title: string }[] = [
+  { key: 'columns', label: 'Columns', title: 'The crane stage' },
+  { key: 'array', label: 'Array', title: 'The array, grouped as the algorithm sees it' },
+  { key: 'tree', label: 'Structure', title: 'Recursion tree, heap, or pass ladder' },
 ];
 
-export function ViewModeSwitch({ mode, onMode, algorithmKey }: Props) {
-  const treeEnabled = TREE_CAPABLE.includes(algorithmKey);
+export function ViewModeSwitch({ mode, onMode }: Props) {
   return (
     <div
       role="radiogroup"
@@ -22,7 +19,6 @@ export function ViewModeSwitch({ mode, onMode, algorithmKey }: Props) {
       className="liquid-glass flex items-center gap-1 rounded-full p-1"
     >
       {OPTIONS.map((opt) => {
-        const disabled = opt.key === 'tree' && !treeEnabled;
         const active = mode === opt.key;
         return (
           <button
@@ -30,18 +26,11 @@ export function ViewModeSwitch({ mode, onMode, algorithmKey }: Props) {
             type="button"
             role="radio"
             aria-checked={active}
-            disabled={disabled}
-            title={
-              disabled
-                ? 'Tree view is available for Merge Sort, Quicksort and Heapsort'
-                : `${opt.label} view`
-            }
+            title={opt.title}
             onClick={() => onMode(opt.key)}
             className={`rounded-full px-4 py-1.5 text-sm transition-colors duration-fast ${
-              active
-                ? 'bg-accent text-on-accent'
-                : 'text-secondary hover:text-primary disabled:hover:text-secondary'
-            } disabled:cursor-not-allowed disabled:opacity-40`}
+              active ? 'bg-accent text-on-accent' : 'text-secondary hover:text-primary'
+            }`}
           >
             {opt.label}
           </button>

@@ -1,8 +1,7 @@
 /**
  * Array generation for the visualizer. Heights live in a fixed domain
  * (`MIN_HEIGHT`…`MAX_HEIGHT`) independent of array size, so bars look
- * consistent whether there are 5 or 200 of them. Multi-digit values keep radix
- * sort meaningful.
+ * consistent whether there are 5 or 200 of them.
  */
 
 export type PresetKey = 'random' | 'nearly-sorted' | 'reversed' | 'few-unique';

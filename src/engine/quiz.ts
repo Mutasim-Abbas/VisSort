@@ -134,17 +134,13 @@ export function generateQuiz(key: AlgorithmKey, seed: number): Question[] {
     );
   }
 
-  // 6. Swap-model insight (radix/merge do zero swaps by design).
+  // 6. Swap-model insight (merge does zero swaps by design).
   if (algo.writesModel === 'overwrite') {
     questions.push(
       mc(
         `How many SWAPS does ${algo.name} perform?`,
         'Zero — it never swaps, it writes values into place',
-        [
-          'About n log n swaps',
-          'The same number as its comparisons',
-          'One swap per element',
-        ],
+        ['About n log n swaps', 'The same number as its comparisons', 'One swap per element'],
         `${algo.name} is not swap-based: it copies values into their target positions, so its swap counter stays at 0 while its write counter grows.`,
         seed + 6,
       ),

@@ -18,7 +18,10 @@ const STATE_BG: Record<string, string> = {
 
 /** Deterministic shuffled heights so every card looks distinct but stable. */
 function previewArray(seed: number): number[] {
-  const arr = Array.from({ length: PREVIEW_N }, (_, i) => 12 + Math.round((88 * i) / (PREVIEW_N - 1)));
+  const arr = Array.from(
+    { length: PREVIEW_N },
+    (_, i) => 12 + Math.round((88 * i) / (PREVIEW_N - 1)),
+  );
   let s = seed * 2654435761;
   for (let i = arr.length - 1; i > 0; i--) {
     s = (s * 1103515245 + 12345) & 0x7fffffff;
@@ -31,7 +34,7 @@ function previewArray(seed: number): number[] {
 /**
  * A living preview: the card's own algorithm genuinely sorting 14 bars on
  * loop, driven by the real step engine. setInterval (not rAF) so previews
- * stay simple; ~7 steps/s across 8 cards is negligible work.
+ * stay simple; ~7 steps/s across 6 cards is negligible work.
  */
 function MiniSort({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
   const input = useMemo(() => previewArray(seed), [seed]);
@@ -98,8 +101,8 @@ export default function Gallery() {
         Choose an algorithm
       </h1>
       <p className="mt-2 mb-10 max-w-2xl text-secondary">
-        Eight classic sorting algorithms, from the simple to the clever — each card is really
-        sorting, right now, with its own method. Pick one to take the controls.
+        Six classic sorting algorithms, from the simple to the clever — each card is really sorting,
+        right now, with its own method. Pick one to take the controls.
       </p>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

@@ -9,7 +9,79 @@
  * highlight the executing line in lock-step with the animation — forwards and
  * backwards — instead of showing static code beside a moving picture.
  */
-export type Step = StepKind & { line?: number };
+export type Step = StepKind & { line?: number; ctx?: StepContext };
+
+/** How one contiguous run of positions is classified by the running algorithm. */
+export type GroupKind =
+  | 'ordered' // sorted so far but NOT final (insertion's prefix)
+  | 'unsorted' // in play, no finer structure known
+  | 'scanned' // already examined during this pass
+  | 'unexamined' // not yet reached during this pass
+  | 'lessThan' // quicksort: proven < pivot
+  | 'greaterThan' // quicksort: proven >= pivot
+  | 'pivot' // quicksort: the pivot cell itself
+  | 'merged' // merge: destination slots already written this merge
+  | 'heap' // heapsort: the live max-heap
+  | 'outside'; // not part of the call/pass currently executing
+
+export interface Group {
+  /** Inclusive position range. */
+  lo: number;
+  hi: number;
+  kind: GroupKind;
+  /** Short human label shown on the group's bracket, e.g. 'sorted so far', '< 41'. */
+  label: string;
+}
+
+/**
+ * Optional teaching context attached to a step. Purely descriptive: it never
+ * touches the array, the counters, or replay. `applyStepsToArray` and
+ * `accumulateStep` continue to ignore everything except `type`.
+ *
+ * CONTRACT — a step's `ctx` describes the array **after that step has been
+ * applied**. Views read it via `contextAt(steps, frame.index)`, and the frame at
+ * index `k` is the state after `steps[k-1]`, so a swap's groups must reflect the
+ * post-swap array. Building them from the pre-step state puts the labels one
+ * step behind and makes them lie (a `>= pivot` bracket spanning a smaller value).
+ *
+ * The "final" region is deliberately NOT a group kind — it is derived by the
+ * view from `frame.state[id] === 'sorted'`, which the existing `markSorted`
+ * steps already drive. One source of truth, not two.
+ */
+export interface StepContext {
+  /**
+   * How the algorithm currently carves up the array. INVARIANT: groups are
+   * non-overlapping, sorted ascending by `lo`, and together cover exactly
+   * 0…n-1. This is the field the Array view is built around.
+   */
+  groups?: readonly Group[];
+  /**
+   * Named cursors → array positions. Keys are DISPLAY LABELS and match the
+   * identifiers used in the pseudocode ('i', 'j', 'min', 'end', 'k', 'root').
+   */
+  cursors?: Readonly<Record<string, number>>;
+  /** Short phase label: 'Pass 2 of 7', 'Build max-heap', 'Merge 0-3'. */
+  phase?: string;
+  /** 1-based pass number (and total when known) for algorithms that run in passes. */
+  pass?: { index: number; total?: number };
+  /**
+   * The two values ACTUALLY compared. Merge sort compares values held in
+   * scratch buffers while overwriting the same range, so the highlighted cells
+   * may no longer hold them. Required on every `compare` step.
+   */
+  values?: { a: number; b: number };
+  /** Merge sort only: the merge in flight, so the view can draw both source runs. */
+  merge?: {
+    lo: number;
+    mid: number;
+    hi: number;
+    /** Elements consumed from each half so far. */
+    takeLeft: number;
+    takeRight: number;
+    /** Destination index the next write lands on. */
+    write: number;
+  };
+}
 
 type StepKind =
   | { type: 'compare'; i: number; j: number }

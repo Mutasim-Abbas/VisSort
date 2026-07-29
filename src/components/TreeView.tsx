@@ -1,13 +1,16 @@
 import { useMemo } from 'react';
 import type { Frame } from '../engine/player';
-import type { BarState, Step } from '../engine/types';
 import type { AlgorithmKey } from '../engine/registry';
-import { buildMergeSegments, buildQuickSegments, flatten, maxDepth } from '../engine/treeModel';
-import { useElementSize } from '../hooks/useElementSize';
+import type { BarState, Step } from '../engine/types';
+import { contextAt, invariantOf } from '../engine/stepContext';
+import { activeNode, buildTreeModel, callPath } from '../engine/treeProgress';
+import { ArrayRibbon } from './tree/ArrayRibbon';
+import { RecursionTree } from './tree/RecursionTree';
+import { HeapTree } from './tree/HeapTree';
+import { PassLadder } from './tree/PassLadder';
 
 interface Props {
   algorithmKey: AlgorithmKey;
-  input: readonly number[];
   frame: Frame;
   steps: readonly Step[];
   speed: number;
@@ -16,276 +19,135 @@ interface Props {
 
 const SNAP_SPEED = 20;
 
-const STATE_FILL: Record<BarState, string> = {
-  default: 'var(--color-bar-default)',
-  comparing: 'var(--color-bar-comparing)',
-  swapping: 'var(--color-bar-swapping)',
-  overwriting: 'var(--color-bar-overwriting)',
-  pivot: 'var(--color-bar-pivot)',
-  sorted: 'var(--color-bar-sorted)',
-};
-
-const key = (lo: number, hi: number) => `${lo}-${hi}`;
-
-/** Per-position values/states derived from the id-indexed frame. */
-function byPosition(frame: Frame): { values: number[]; states: BarState[] } {
-  const n = frame.heights.length;
-  const values = new Array<number>(n);
-  const states = new Array<BarState>(n);
-  for (let id = 0; id < n; id++) {
-    values[frame.posOf[id]] = frame.heights[id];
-    states[frame.posOf[id]] = frame.state[id];
-  }
-  return { values, states };
+/** Which structure each algorithm actually has. */
+function structureOf(key: AlgorithmKey): 'recursion' | 'heap' | 'passes' {
+  if (key === 'merge' || key === 'quick') return 'recursion';
+  if (key === 'heap') return 'heap';
+  return 'passes';
 }
 
 /**
- * Which ranges have been divided (and which are combining) as of the current
- * step. This is what makes the tree *grow* — a node only exists once its
- * `divide` step has actually executed.
+ * Structure view: the shape the running algorithm actually has — a recursion
+ * tree for merge and quick, a binary heap for heapsort, a pass ladder for the
+ * three that run in flat passes.
+ *
+ * Everything derives from the emitted steps via `treeProgress`, built once per
+ * run rather than rescanned per frame, and the array ribbon at the top keeps the
+ * abstract ranges tied to the concrete elements they refer to.
  */
-function useRecursionProgress(steps: readonly Step[], index: number) {
-  return useMemo(() => {
-    const divided = new Set<string>();
-    const combining = new Set<string>();
-    let current: string | null = null;
-    for (let k = 0; k < index && k < steps.length; k++) {
-      const s = steps[k];
-      if (s.type === 'divide') {
-        divided.add(key(s.lo, s.hi));
-        current = key(s.lo, s.hi);
-      } else if (s.type === 'combine') {
-        combining.add(key(s.lo, s.hi));
-        current = key(s.lo, s.hi);
-      }
+export function TreeView({ algorithmKey, frame, steps, speed, statusLabel }: Props) {
+  const n = frame.heights.length;
+  const snap = speed >= SNAP_SPEED;
+  const kind = structureOf(algorithmKey);
+
+  const ctx = useMemo(() => contextAt(steps, frame.index), [steps, frame.index]);
+  const model = useMemo(() => buildTreeModel(steps), [steps]);
+
+  const { valueByPos, stateByPos, maxVal } = useMemo(() => {
+    const values = new Array<number>(n).fill(0);
+    const states = new Array<BarState>(n).fill('default');
+    let max = 0;
+    for (let id = 0; id < n; id++) {
+      values[frame.posOf[id]] = frame.heights[id];
+      states[frame.posOf[id]] = frame.state[id];
+      if (frame.heights[id] > max) max = frame.heights[id];
     }
-    return { divided, combining, current };
-  }, [steps, index]);
-}
+    return { valueByPos: values, stateByPos: states, maxVal: max };
+  }, [frame, n]);
 
-/** Heapsort: the array *is* a binary tree (children of p are 2p+1 / 2p+2). */
-function HeapTree({ frame, width, height }: { frame: Frame; width: number; height: number }) {
-  const n = frame.heights.length;
-  const { values, states } = byPosition(frame);
-  const depth = Math.floor(Math.log2(Math.max(1, n))) + 1;
-  const levelH = Math.min(72, (height - 40) / Math.max(1, depth - 1) || 72);
-  const bottomCount = 2 ** (depth - 1);
-  const r = Math.max(5, Math.min(17, (width / bottomCount) * 0.36));
-  const showValues = r >= 11;
-
-  const cx = (p: number): number => {
-    const d = Math.floor(Math.log2(p + 1));
-    const k = p + 1 - 2 ** d;
-    return ((k + 0.5) / 2 ** d) * width;
-  };
-  const cy = (p: number): number => Math.floor(Math.log2(p + 1)) * levelH + r + 12;
-
-  return (
-    <svg width="100%" height={cy(n - 1) + r + 12} role="img" aria-label="Heap as a binary tree">
-      {Array.from({ length: n }, (_, p) => {
-        const parent = p > 0 ? (p - 1) >> 1 : null;
-        return parent === null ? null : (
-          <line
-            key={`e${p}`}
-            className="tree-edge"
-            x1={cx(parent)}
-            y1={cy(parent)}
-            x2={cx(p)}
-            y2={cy(p)}
-          />
-        );
-      })}
-      {Array.from({ length: n }, (_, p) => (
-        <g key={`n${p}`}>
-          <circle className="tree-node" cx={cx(p)} cy={cy(p)} r={r} fill={STATE_FILL[states[p]]} />
-          {showValues && (
-            <text
-              className="tree-value"
-              x={cx(p)}
-              y={cy(p)}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={Math.min(11, r * 0.85)}
-            >
-              {values[p]}
-            </text>
-          )}
-        </g>
-      ))}
-    </svg>
+  const active = useMemo(
+    () => (kind === 'recursion' ? activeNode(model, frame.index) : null),
+    [kind, model, frame.index],
   );
-}
-
-/**
- * Merge / Quicksort: a real recursion tree that is *built as it runs*. Each
- * node pops in exactly when its `divide` step executes, edges draw from parent
- * to child, the node currently combining glows, and finished ranges go green.
- * Stepping backwards un-draws the tree, because it is derived purely from the
- * step index.
- */
-function RecursionTree({
-  algorithmKey,
-  input,
-  frame,
-  steps,
-  width,
-}: {
-  algorithmKey: AlgorithmKey;
-  input: readonly number[];
-  frame: Frame;
-  steps: readonly Step[];
-  width: number;
-}) {
-  const root = useMemo(
-    () => (algorithmKey === 'quick' ? buildQuickSegments(input) : buildMergeSegments(input.length)),
-    [algorithmKey, input],
+  const path = useMemo(
+    () => (kind === 'recursion' ? callPath(model, frame.index) : []),
+    [kind, model, frame.index],
   );
-  const segments = useMemo(() => flatten(root), [root]);
-  const depth = maxDepth(root) + 1;
-  const { divided, combining, current } = useRecursionProgress(steps, frame.index);
-  const { states } = byPosition(frame);
 
-  const n = input.length;
-  const nodeH = Math.max(14, Math.min(22, 220 / depth));
-  const gapY = Math.max(12, Math.min(22, 170 / depth));
-  const rowH = nodeH + gapY;
-  const labelSize = Math.max(8, Math.min(10, nodeH * 0.5));
+  const invariant = invariantOf(algorithmKey, ctx, frame);
 
-  const xOf = (lo: number) => (lo / n) * width + 1;
-  const wOf = (lo: number, hi: number) => Math.max(3, ((hi - lo + 1) / n) * width - 2);
-  const yOf = (d: number) => d * rowH + 6;
-
-  return (
-    <svg width="100%" height={depth * rowH + 12} role="img" aria-label="Recursion tree">
-      {/* Edges: only drawn once both parent and child have been divided. */}
-      {segments.map((seg) =>
-        seg.children.map((child) => {
-          if (!divided.has(key(seg.lo, seg.hi)) || !divided.has(key(child.lo, child.hi))) {
-            return null;
-          }
-          const px = xOf(seg.lo) + wOf(seg.lo, seg.hi) / 2;
-          const py = yOf(seg.depth) + nodeH;
-          const cxp = xOf(child.lo) + wOf(child.lo, child.hi) / 2;
-          const cyp = yOf(child.depth);
-          return (
-            <path
-              key={`e-${key(seg.lo, seg.hi)}-${key(child.lo, child.hi)}`}
-              className="tree-edge tree-grow"
-              d={`M ${px} ${py} C ${px} ${py + gapY / 2}, ${cxp} ${cyp - gapY / 2}, ${cxp} ${cyp}`}
-              fill="none"
-            />
-          );
-        }),
-      )}
-
-      {segments.map((seg) => {
-        const k = key(seg.lo, seg.hi);
-        if (!divided.has(k)) return null; // not divided yet → not on screen
-
-        let allSorted = true;
-        for (let p = seg.lo; p <= seg.hi; p++) {
-          if (states[p] !== 'sorted') {
-            allSorted = false;
-            break;
-          }
-        }
-        const isCurrent = current === k;
-        const isCombining = combining.has(k) && !allSorted;
-
-        const fill = allSorted
-          ? 'var(--color-bar-sorted)'
-          : isCurrent
-            ? 'var(--accent)'
-            : isCombining
-              ? 'var(--color-bar-overwriting)'
-              : 'var(--bg-surface-3)';
-
-        const x = xOf(seg.lo);
-        const w = wOf(seg.lo, seg.hi);
-        const y = yOf(seg.depth);
-        const label = seg.hi === seg.lo ? `${seg.lo}` : `${seg.lo}–${seg.hi}`;
-        const showLabel = w >= label.length * labelSize * 0.75 + 8 && nodeH >= 14;
-
-        return (
-          <g key={`n-${k}`} className="tree-grow">
-            <rect
-              className="tree-node"
-              x={x}
-              y={y}
-              width={w}
-              height={nodeH}
-              rx={5}
-              fill={fill}
-              stroke={isCurrent ? 'var(--accent)' : 'var(--border-subtle)'}
-              strokeWidth={isCurrent ? 2 : 1}
-            />
-            {showLabel && (
-              <text
-                x={x + w / 2}
-                y={y + nodeH / 2}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={labelSize}
-                fontFamily="var(--font-mono)"
-                fill={
-                  allSorted || isCurrent || isCombining
-                    ? 'var(--on-state)'
-                    : 'var(--text-secondary)'
-                }
-              >
-                {label}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-export function TreeView({ algorithmKey, input, frame, steps, speed, statusLabel }: Props) {
-  const [ref, size] = useElementSize<HTMLDivElement>();
-  const n = input.length;
-  const isRecursive = algorithmKey === 'merge' || algorithmKey === 'quick';
+  // What range the ribbon should bracket, per structure.
+  const range = useMemo(() => {
+    if (kind === 'recursion') return active ? { lo: active.lo, hi: active.hi } : null;
+    if (kind === 'heap') {
+      const g = ctx.groups?.find((x) => x.kind === 'heap');
+      return g ? { lo: g.lo, hi: g.hi } : null;
+    }
+    const g = ctx.groups?.filter((x) => x.kind !== 'outside');
+    if (!g || g.length === 0) return null;
+    return { lo: g[0].lo, hi: g[g.length - 1].hi };
+  }, [kind, active, ctx.groups]);
 
   return (
     <section
-      aria-label="Tree view of the sorting visualization"
-      className="liquid-glass relative flex min-h-[300px] flex-1 overflow-y-auto rounded-[1.25rem] p-4 lg:min-h-0"
+      aria-label="Structure view of the sorting visualization"
+      className="liquid-glass relative flex min-h-[300px] flex-1 flex-col gap-3 overflow-hidden rounded-[1.25rem] p-5 lg:min-h-0"
     >
       <p className="sr-only" aria-live="polite">
         {statusLabel}
       </p>
-      <div
-        ref={ref}
-        style={{
-          ['--step-ms' as string]: `${Math.min(600, Math.round(1000 / Math.max(1, speed)))}ms`,
-        }}
-        className={`w-full ${speed >= SNAP_SPEED ? 'no-transitions' : ''}`}
-      >
-        {isRecursive && frame.index === 0 && (
-          <p className="tree-hint mb-2 text-xs">
-            Press play or step forward — the tree splits apart one recursive call at a time.
-          </p>
+
+      {/* Phase + call-stack rail */}
+      <div className="flex flex-wrap items-center gap-2">
+        {ctx.phase && (
+          <span className="rounded-full border border-subtle bg-surface-2 px-3 py-1 font-mono text-[11px] text-primary">
+            {ctx.phase}
+          </span>
         )}
-        {algorithmKey === 'heap' && n > 63 && (
-          <p className="tree-hint mb-2 text-xs">
-            Tip: the heap tree is clearest with 63 elements or fewer.
-          </p>
+        {path.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {path.map((node, i) => (
+              <span key={node.id} className="flex items-center gap-1">
+                {i > 0 && <span className="text-[10px] text-muted">›</span>}
+                <span
+                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${
+                    i === path.length - 1
+                      ? 'bg-accent-soft text-accent'
+                      : 'border border-subtle text-secondary'
+                  }`}
+                >
+                  d{node.depth} · {node.lo}–{node.hi}
+                </span>
+              </span>
+            ))}
+          </div>
         )}
-        {size.width > 0 &&
-          (algorithmKey === 'heap' ? (
-            <HeapTree frame={frame} width={size.width} height={size.height} />
-          ) : (
-            <RecursionTree
-              algorithmKey={algorithmKey}
-              input={input}
-              frame={frame}
-              steps={steps}
-              width={size.width}
-            />
-          ))}
+        <span className="rounded-full border border-subtle px-3 py-1 font-mono text-[11px] text-muted">
+          step {frame.index} / {frame.total}
+        </span>
       </div>
+
+      {/* The tree↔array link */}
+      <ArrayRibbon frame={frame} range={range} />
+
+      <p className="min-h-[2.5em] text-[13px] leading-snug text-secondary">
+        {invariant || (
+          <span className="text-muted">Press play to watch the structure build itself.</span>
+        )}
+      </p>
+
+      {n === 0 ? (
+        <p className="grid flex-1 place-items-center text-sm text-muted">No data yet.</p>
+      ) : kind === 'recursion' ? (
+        <RecursionTree
+          model={model}
+          frame={frame}
+          valueByPos={valueByPos}
+          maxVal={maxVal}
+          activeId={active?.id ?? null}
+          snap={snap}
+        />
+      ) : kind === 'heap' ? (
+        <HeapTree
+          frame={frame}
+          ctx={ctx}
+          valueByPos={valueByPos}
+          stateByPos={stateByPos}
+          snap={snap}
+        />
+      ) : (
+        <PassLadder steps={steps} frame={frame} n={n} />
+      )}
     </section>
   );
 }

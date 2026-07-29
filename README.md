@@ -1,7 +1,7 @@
 # VisSort
 
 A cinematic, interactive **sorting-algorithm visualizer** built for teaching and
-learning. Watch eight classic algorithms work step by step — in three different
+learning. Watch six classic algorithms work step by step — in three different
 views — with live statistics, adjustable speed, sound, and pseudocode that
 executes in lock-step with the animation.
 
@@ -30,14 +30,21 @@ is no backend.
 
 ## Features
 
-- **8 algorithms** — Bubble, Insertion, Selection, Merge, Quicksort, Heapsort,
-  Shell, and Radix (LSD).
-- **Three views** — **Columns** (a 3D gantry crane that physically picks up a
-  numbered box, hoists it clear of the shelf and sets it down in its new slot,
-  with the jaws opening and closing on each grab), **Array** (numbered cells that
-  slide between indexed slots), and **Tree** (the recursion tree for merge /
-  quick that is _built step by step as the algorithm divides_, and the binary
-  heap tree for heapsort).
+- **6 algorithms** — Bubble, Insertion, Selection, Merge, Quicksort, and
+  Heapsort.
+- **Three views**, all available for every algorithm:
+  - **Columns** — a 3D gantry crane that physically picks up a numbered box,
+    hoists it clear of the shelf and sets it down in its new slot, with the jaws
+    opening and closing on each grab.
+  - **Array** — the row _divided into the groups the running algorithm actually
+    maintains_: quicksort's `< pivot` / `>= pivot` / unexamined partitions,
+    insertion's ordered prefix, heapsort's live heap, merge's written region.
+    Each group is bracketed and labelled, with a cursor rail, a plain-English
+    invariant, and a comparison callout showing what each comparison decided.
+  - **Structure** — the shape the algorithm has: a recursion tree for merge and
+    quicksort (built step by step as calls open and return), the binary heap for
+    heapsort, and a pass ladder for the three that run in flat passes. A pinned
+    array ribbon ties every abstract range back to the real elements.
 - **Your own numbers** — type any list; the app never invents data for you (it
   opens on a proper empty state). Presets (random / nearly-sorted / reversed /
   few-unique) and sizes 5–200 are there too.

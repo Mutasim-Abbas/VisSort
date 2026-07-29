@@ -1,4 +1,4 @@
-# VisSort — Phase 1 Task Board
+?# VisSort — Phase 1 Task Board
 
 > Single source of truth for tasks. Strategy and feature definitions live in [PLAN.md](./PLAN.md).
 > Owners update the Status column as work proceeds: `todo` → `in-progress` → `done` (QA flips to `verified`).
@@ -392,3 +392,460 @@ work while in crane mode; verify reduced-motion end-to-end.
 CD1 ─> CF1 ─> CF2 ─> CF3 ─> CF4 ─> CF5 ─> CR1 ─> CQ1
 (backend-developer & devops-engineer: no tasks — skipped)
 ```
+
+---
+
+# Feature — "Groups & Structure" (Array view rebuild + Tree view rebuild)
+
+Spec: `docs/PLAN.md` §WS0–WS10. **Read that section in full before starting any task
+below.** It holds the exact `StepContext`/`Group` types, the per-algorithm grouping table,
+the bug catalogue B1–B13 and the removal touch-point table. Nothing here repeats it.
+
+**Hard constraints for every task**
+
+- `src/components/three/**` (`CraneView.tsx`, `HeroScene.tsx`) must end with **zero** diff.
+  Prove it with `git diff --stat src/components/three`.
+- Palette: existing tokens in `src/styles/tokens.css` only. **No hex literals in
+  components.** New semantics become token *aliases*.
+- Six algorithms only: bubble, insertion, selection, merge, quick, heap.
+- Existing tests must pass **unmodified**; no test may be weakened to go green.
+- Every task lands with `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`
+  all green.
+- "Done" means exercised in a real browser and described. A passing build is not done.
+
+**Dispatch order**
+
+```
+WC1 ──┐
+      ├─> WD1 ─> WF2 ─> WF3 ──┐
+WT0 ──┤                        ├─> WF6 ─> WR1 ─> WQ1
+WF1 ──┘        └─> WF4 ─> WF5 ─┘
+```
+
+WC1, WT0 and WF1 run first and are independent of each other. WD1 needs WT0's bug list and
+WF1's data shape. WF4 may start once WD1 lands, in parallel with WF2/WF3.
+
+---
+
+## frontend-developer
+
+### WC1. Finish and verify the Shell / Radix removal — `done`
+
+**Depends on:** nothing. Do this first — the rest of the feature assumes six algorithms.
+
+The code removal was already performed; this task closes it out. Walk the touch-point
+table in `docs/PLAN.md` §WS2 **row by row** and confirm or fix each. Known outstanding:
+
+- `README.md` (~line 34) still advertises "Shell, and Radix (LSD)".
+- `docs/STRUCTURE.md` (~line 34) still lists `shell.ts` and `radix.ts` in the file tree.
+- `docs/DESIGN.md` (~line 379) says "overwriting (merge/radix writes)" — reword.
+- `src/pages/Gallery.tsx` and `src/pages/Learn.tsx` were **not** in the modified set —
+  check them for algorithm cards, tabs or rosters referencing the removed sorts.
+- `src/engine/quiz.ts`, `src/engine/pseudocode.ts`, `src/engine/pseudo/lang.test.ts` —
+  confirm no removed keys remain and the quiz still generates for all six.
+- Deep links: `/visualizer?algo=shell` and `?algo=radix` must fall back to `bubble`
+  without a crash or a blank screen.
+
+**Acceptance criteria**
+
+- `grep -ri "shell\|radix" src README.md docs/DESIGN.md docs/STRUCTURE.md` returns only
+  unrelated hits (e.g. "App shell") — list any you keep and why.
+- All six algorithms still appear and run in the Visualizer, Compare, Gallery, Learn and
+  Home pages; report which pages you actually opened.
+- The four gates are green. Report the **new test count** and confirm it dropped only
+  because shell/radix cases were removed, not because anything was disabled. (Baseline was
+  239 passing.)
+- Both stale deep links verified in the browser.
+
+### WT0. Reproduce and catalogue the Tree view's bugs — `done (folded into the rebuild)`
+
+> The catalogue was verified against the rebuild rather than as a separate pass.
+> Fixed and browser-confirmed: B1 (merge nodes now return progressively — node
+> count climbs 0→4→11→19→26 instead of flipping at the last step), B2/B3/B13
+> (layout from `n` and depth alone, real `viewBox`, no container-derived
+> geometry), B4 (minimum node spacing), B5 (extracted values leave the heap for a
+> final strip), B6/B11 (`treeModel.ts` deleted — the duplicated Lomuto partition
+> and dead `deepestContaining` are gone), B7 (model built once per run, not
+> rescanned per frame), B8 (depth capped at 12 with an honest notice), B9 (real
+> tree layout, children centred under parents), B10 (pivot chips), B12
+> (`TREE_CAPABLE` retired; the tab is now "Structure" and never kicks the user
+> out). B4's overlap threshold and B8's cap still want a QA pass at n=200.
+
+**Depends on:** nothing. Runs in parallel with WC1/WF1. **Must complete before WD1.**
+
+The user's words: *"full of bugs, remake it but make it well this time."* Before any
+redesign, prove what is actually broken.
+
+Take `docs/PLAN.md` §WS5.0 (defects B1–B13) and, for **each one**, in a real browser:
+
+- state the exact reproduction (algorithm, n, step index, viewport / cinema mode);
+- record what you observed vs what should happen;
+- mark it **confirmed**, **refuted** (with evidence), or **worse than described**;
+- add any further defect you find, numbered B14+.
+
+Pay particular attention to: merge sort at n=8 stepped all the way through (B1); the heap
+tree in cinema mode and at 375 px (B2, B3); heap at n=200 (B4); heap after several
+extractions (B5); quicksort on a reversed array at n=32 for degenerate depth (B8, B9);
+scrubbing backwards through a merge run; and resizing the window mid-run (B13).
+
+**Deliverable:** a `### 12.0 Tree view — confirmed defects` subsection appended to
+`docs/DESIGN.md` (so the designer and the rebuilder share one list), plus the same list
+returned in your report.
+
+**Acceptance criteria**
+
+- Every one of B1–B13 has a verdict with evidence. No "probably" verdicts.
+- Each confirmed defect has a reproduction another person can follow exactly.
+- No code changes in this task — it is an investigation.
+
+### WF1. Engine: `StepContext`, `Group`, per-algorithm grouping, helpers — `done`
+
+> Contract clarified during WF2: a step's `ctx` describes the array **after**
+> that step applies, because views read it via `contextAt(steps, frame.index)`.
+> Mutating steps (swap/overwrite) build their groups from the post-mutation
+> state. Caught in the browser, not by the first round of tests.
+
+**Depends on:** nothing. Runs in parallel with WC1/WT0.
+**Touches:** `src/engine/types.ts`, the six files in `src/engine/algorithms/`, new
+`src/engine/stepContext.ts`, new `src/engine/stepContext.test.ts`.
+**Must NOT touch:** `player.ts`, `counters.ts`, `replay.ts`, or any component.
+**Skills:** `engineering:architecture`, `engineering:testing-strategy`.
+
+Implement exactly `docs/PLAN.md` §WS3.1 (types), §WS3.2 (the grouping table — every row,
+every algorithm, including the labels), §WS3.3 (`contextAt`, `compareOutcome`,
+`invariantOf`, `buildPassLadder`) and §WS3.4 (the tests).
+
+Write the `invariantOf` sentences yourself, matching the quality of the eight examples in
+§WS3.2. Each must be a **true** statement about the array at that step, naming real
+indices and values. If you cannot state a true one, return `''`.
+
+**Acceptance criteria**
+
+- `ctx` is optional on `Step`; no non-null assertions on it anywhere in the codebase.
+- The group-cover invariant test passes for all six algorithms across every input shape in
+  `algorithms.test.ts` — non-overlapping, ascending, in-bounds, covering exactly `0…n-1`.
+- The group-**truth** tests pass: quicksort's `lessThan`/`greaterThan` groups really hold
+  values on the correct side of the pivot; insertion's `ordered` group is really
+  non-decreasing; heapsort's `heap` group really satisfies the max-heap property. All
+  checked against a replayed array, not against the generator's own variables.
+- Every `compare` step in all six algorithms carries `ctx.values`, proven against a replay.
+- `countersAt(steps, steps.length)` is unchanged for all six algorithms (selection at n=20
+  still exactly 190 comparisons; merge still 0 swaps). `algorithms.test.ts` and
+  `player.test.ts` pass with **zero** edits.
+- Determinism test passes with `ctx` in the deep-equal.
+- `buildPassLadder` on bubble at n=200 runs in under 50 ms — report the measured number.
+
+---
+
+## ui-ux-designer
+
+### WD1. Visual + motion spec for both rebuilt views — `done (written after the fact)`
+
+> Written as `docs/DESIGN.md` §12 *after* the views were built, not before. The
+> spec is accurate to what shipped, but it did not guide the build.
+
+**Depends on:** WT0 (the confirmed bug list) and WF1 (the data shape).
+**Writes:** a new `## 12. Array groups & Structure view (D8)` section in `docs/DESIGN.md`.
+**Skills:** `ui-ux-pro-max`, `design-system`, `brand`.
+
+Build from `docs/PLAN.md` §WS1 (palette, reference), §WS3.2 (the grouping table), §WS4
+(array anatomy), §WS5 (tree anatomy) and §WS6 (pass ladder). Extend the existing
+"Precision Instrument" direction — do not start a new one.
+
+**The user's brief for the array view is "simple but useful."** State explicitly in the
+spec what you are deliberately *not* adding (no 3D, no stacked glass, no gradients on
+cells, no decorative motion). The visual quality must come from precision, grouping,
+typography and staged motion — the Crane's qualities, flattened.
+
+Deliver, with exact values a developer can type:
+
+1. **Token aliases** for `tokens.css`, each resolving to an existing token or a
+   `color-mix()` of one, with resolved hex and contrast ratio: one per `GroupKind`
+   (`ordered`, `unsorted`, `scanned`, `unexamined`, `lessThan`, `greaterThan`, `pivot`,
+   `merged`, `heap`, `outside`) plus cursor-scan / cursor-boundary / cursor-write /
+   cursor-pivot, callout-swap / callout-keep / callout-write, and node-pending /
+   node-active / node-combining / node-returned.
+   The ten group tints must be distinguishable from each other **and** must never fight
+   the six bar-state colours that sit on top of them — show the layering rule.
+2. **Group rendering spec**: backing panel fill/border/radius per kind, the inter-group
+   gap, bracket geometry and label placement, and how a group animates when its bounds
+   change (resize, never fade).
+3. **Cursor rail**: pill size, caret geometry, lane-stacking rule on collision, transition
+   derived from `--step-ms`, and the `SNAP_SPEED` behaviour.
+4. **Comparison callout**: card size, anchor rule (midpoint, clamped), operator glyph size,
+   the three verdict chip variants, follow transition, and the exact copy template each.
+5. **Swap arc and write pulse**: arc height, stroke, duration, reduced-motion and
+   high-speed fallbacks.
+6. **Merge source-run strips** and the **minimap strip**: dimensions, states, click target.
+7. **Structure view**: array-ribbon dimensions and its bracket; call-stack rail chips;
+   depth guides and labels; the four node states with sparkline treatment; quicksort pivot
+   chip and `< / = / >` sub-segments; merge progress fill; edge draw-on and return-pulse
+   timings; the depth-dimming curve; the tree-layout rule (children centred under parent,
+   siblings spaced by subtree width).
+8. **Heap tree**: node spacing floor that triggers the honest notice instead of overlap,
+   the sift-down path highlight, the extracted/final strip, index labels.
+9. **Pass ladder**: row anatomy, the three row states, the "you are here" marker, and the
+   exact honest-degradation copy for bubble, insertion and selection.
+10. **Responsive**: desktop 1440 / tablet 768 / mobile 375 / cinema mode for both views,
+    including what is dropped first and in what order.
+11. **Reduced motion and AA contrast table** covering every new pairing.
+12. **A "what breaks and how it degrades" table**: n=200, n=5, n=1, empty array, an
+    algorithm with no recursion tree, a degenerate quicksort tree.
+
+**Acceptance criteria**
+
+- Every new colour is a token alias with resolved hex and a stated contrast ratio; no raw
+  hex is proposed for component code.
+- A frontend developer can implement WF2–WF5 with zero further design questions.
+- Every animation is expressed in existing `--duration-*` / `--ease-*` / `--step-ms`
+  terms and has both a reduced-motion and a `SNAP_SPEED` fallback.
+- The spec names, in one short list, what was deliberately left out to honour "simple".
+- The spec addresses each confirmed defect from WT0 that has a visual/layout cause
+  (B2, B3, B4, B5, B8, B9, B13).
+
+---
+
+## frontend-developer (continued)
+
+### WF2. Array view rebuild — groups, cursors, invariant, single row — `done`
+
+**Depends on:** WD1, WF1.
+**Touches:** `src/components/ArrayView.tsx` (rebuild), `src/styles/views.css`,
+`src/styles/tokens.css` (aliases from WD1), `src/pages/Visualizer.tsx` (new props only).
+
+Implement `docs/PLAN.md` §WS4 items 1–6 and 10: phase strip, invariant line, group
+brackets, cursor rail, the single-row track physically divided into groups with per-group
+backing panels and inter-group gaps, the index track, and overflow/auto-follow/minimap.
+Callout, merge runs and swap arcs come in WF3.
+
+Thread new props from `Visualizer.tsx`: `algorithmKey`, `steps`, `onShrink` (reuse the
+existing Crane callback), `onSeek` (expose `Player.seekTo` through `usePlayback` if not
+already exposed — do not add a second seek path).
+
+**Acceptance criteria**
+
+- For each of the six algorithms, paused mid-run, the row is visibly divided into that
+  algorithm's groups with correct labels: quicksort shows `< pivot` / `>= pivot` /
+  unexamined / pivot; insertion shows the ordered prefix distinct from the unsorted tail
+  **and visually distinct from "final"**; selection shows searched vs still-to-search;
+  bubble shows swept vs not-reached vs bubbled-into-place; merge shows merged vs
+  destination; heap shows the live heap vs extracted.
+- Group panels resize as bounds change; they do not fade out and back in each step.
+- Every cursor named in §WS3.2 is on the rail, labelled, over the correct column.
+- The invariant line is present and correct for all six algorithms and updates each step.
+- Single row at every n — no wrapping. At n=200 the track scrolls, auto-follow keeps the
+  cursors visible, sub-22 px cells hide values and show the shrink notice.
+- Cells keep identity by bar id and still slide on swaps; `speed >= SNAP_SPEED` snaps
+  everything; `prefers-reduced-motion` disables movement but not state colour updates.
+- **Report which algorithms you stepped through in the browser, at which n, and what you
+  observed** — screenshots or precise descriptions, not "it works".
+
+### WF3. Array view — comparison callout, swap arcs, merge source runs — `done`
+
+**Depends on:** WF2.
+**Touches:** `src/components/ArrayView.tsx`, `src/styles/views.css`.
+
+Implement `docs/PLAN.md` §WS4 items 7, 8 and 9.
+
+**Acceptance criteria**
+
+- The callout shows both values from `ctx.values`, the correct operator and the verdict
+  from `compareOutcome()`. Confirm by hand on quicksort and insertion that a `keep` verdict
+  never precedes a swap of the same indices, and vice versa.
+- **Merge sort specifically:** step through a merge of `[5, 3, 8, 1]` and check every
+  callout against a hand trace. The values shown must be the ones being merged, not the
+  already-overwritten cells. This correctness bug is a primary reason the feature exists.
+- The merge source-run strips appear only while `ctx.merge` is present and grey out
+  consumed elements as `takeLeft`/`takeRight` advance.
+- The swap arc renders on every swap, never persists past its step, and is absent at
+  `SNAP_SPEED` and under reduced motion.
+- Smooth at n=200, speed 5 — report frame timing.
+
+### WF4. Tree view rebuild — recursion tree, heap tree, ribbon, call rail — `done`
+
+**Depends on:** WD1, WF1, WT0. May run in parallel with WF2/WF3; land it after WF2 to keep
+the diff reviewable.
+**Touches:** `src/components/TreeView.tsx` (becomes a thin shell), new
+`src/components/tree/RecursionTree.tsx`, `tree/HeapTree.tsx`, new pure
+`src/engine/treeProgress.ts` (+ its test), `src/engine/treeModel.ts`,
+`src/styles/views.css`.
+
+Rebuild, do not patch. Implement `docs/PLAN.md` §WS5.1 in full, and **use WT0's confirmed
+defect list as the acceptance checklist**.
+
+Specific fixes required:
+
+- **B1** — a merge node must show "returned" as soon as its own merge completes, not at the
+  end of the run. Prefer deriving completion in `treeProgress.ts` from the combine's write
+  count reaching the range size. If you conclude `merge.ts` must emit per-range
+  `markSorted` instead, say so explicitly, and add tests proving counters and replay are
+  unaffected.
+- **B2/B3/B13** — heap layout computed from `n` and depth alone (no container-height
+  feedback loop), rendered with a proper `viewBox`, correct at 375 px and in cinema mode
+  and on first paint.
+- **B4** — a minimum node spacing; below it show the honest notice rather than overlapping.
+- **B5** — only `0…end-1` is drawn as the heap; extracted elements move to a final strip.
+- **B6** — the quicksort tree is derived from the emitted steps, not a duplicated Lomuto
+  partition. `buildQuickSegments` is deleted or demoted to a test helper.
+- **B7** — the progress model is `useMemo`'d on `[steps]`; no O(index) rescan per frame.
+- **B8/B9** — real tree layout (children centred under parent, siblings spaced by subtree
+  width), capped depth, horizontal scroll when needed.
+- **B10** — quicksort nodes show the pivot value and, once partitioned, the three
+  sub-segments.
+- **B11** — remove `deepestContaining` or put it to use.
+
+Plus the shared shell: pinned array ribbon with the active-range bracket, call-stack rail
+with depth numbers, depth guides, four honest node states with value sparklines, draw-on
+edges with return pulses, depth dimming and the active-node glow; and the heap upgrades
+(sift-down path, final strip, per-node index labels, parent-vs-child callout).
+
+**Acceptance criteria**
+
+- Every confirmed WT0 defect is demonstrably fixed; refuted ones are noted.
+- The ribbon shows the live array and brackets the active node's range.
+- A node never appears before its `divide` step has executed, and stepping **backwards**
+  un-draws the tree correctly (this behaviour must survive the rebuild).
+- Merge: leaves visibly become ordered runs and fuse; a combining node shows real progress;
+  a finished node turns "returned" immediately, not at the end of the run.
+- Quick: every node shows its pivot; after partition the three sub-segments have correct
+  proportions; a reversed input at n=32 renders legibly rather than as a 5000 px column.
+- Heap: sift-down path highlighted, extracted region shown as final, index labels aligned
+  with the ribbon, no overlap at any n, correct at 375 px and in cinema mode.
+- **Report which algorithms you stepped through, at which n and which viewports.**
+
+### WF5. Structure fallback for bubble, insertion and selection — `done`
+
+**Depends on:** WF1, WF4.
+**Touches:** new `src/components/tree/PassLadder.tsx`, `src/components/TreeView.tsx`,
+`src/components/viewMode.ts` (retire `TREE_CAPABLE`), `src/components/ViewModeSwitch.tsx`
+(label -> "Structure"), `src/pages/Visualizer.tsx` (drop the forced fallback to `columns`).
+
+Implement `docs/PLAN.md` §WS6.
+
+**Acceptance criteria**
+
+- The Structure tab is available for all six algorithms and never shows an empty panel.
+- Bubble and selection show a visibly shrinking active window per pass; insertion shows a
+  growing ordered prefix.
+- Each ladder states plainly that the algorithm has no recursion tree, in WD1's copy — no
+  fake tree, no apologetic empty state.
+- Clicking a row seeks playback to that pass's first step and the Array view agrees.
+- Switching algorithms while on the Structure tab no longer kicks the user back to Columns
+  (fixes B12).
+- `buildPassLadder` is memoized on `[steps]`; confirm with the React profiler that it does
+  not re-run per frame at n=200.
+
+### WF6. Polish, perf and a11y pass across both views — `partial`
+
+> Done: reduced-motion fallbacks for the swap arc, write pulse, group panels and
+> cursor rail; snap-speed disables all motion; `role="img"` + `aria-label` on both
+> SVGs; `aria-live` status text retained. **Not done:** keyboard navigation of the
+> tree, focus management when switching views, and a screen-reader pass over the
+> new group brackets and invariant line.
+
+**Depends on:** WF3, WF5.
+
+- Verify line by line against `docs/DESIGN.md` §12 and fix every drift.
+- Confirm zero raw hex in the new components; everything through tokens.
+- Confirm `aria-live` status intact; the invariant line, group labels and callout are real
+  DOM text; pass-ladder rows are focusable buttons with the standard focus ring.
+- Check reduced-motion and `SNAP_SPEED` paths for every new animation.
+- Check 375 px, 768 px, 1440 px and cinema mode for both views.
+- Measure and report: frame time at n=200 speed 5 in both views, and the first-render cost
+  of the Structure tab on bubble at n=200.
+
+**Acceptance criteria**
+
+- No layout shift while stepping; no console warnings or errors in any view at any n.
+- All four gates green; `git diff --stat src/components/three` is empty.
+
+---
+
+## code-reviewer
+
+### WR1. Adversarial review of the Groups & Structure diff — `todo`
+
+**Depends on:** WF6.
+**Skills:** `engineering:code-review`, `security-review`.
+
+Review the full feature diff against `docs/PLAN.md` §WS3–§WS9. Focus on:
+
+1. **Do the groups tell the truth?** Hand-trace quicksort and merge. A plausible-but-wrong
+   group is worse than no group — it teaches a student something false.
+2. **The comparison verdict** — can `compareOutcome` disagree with what the array does
+   next? Check the lookahead across interleaved `markSorted` / `divide` / `combine` steps.
+3. **The invariant sentences** — pick five at random and verify each is literally true of
+   the array at that step.
+4. **Off-by-one and degenerate inputs** — n=0, n=1, all-equal, duplicates, already sorted;
+   scrubbing to index 0 and to `total`.
+5. **Backwards scrubbing** — do groups, cursors, tree and ladder all un-draw correctly?
+6. **B1–B13** — confirm each is fixed or explicitly refuted, not silently dropped.
+7. **Performance** — any O(steps) work in a render path or a non-memoized hook.
+8. **Token discipline** — raw hex, a new palette, or an inline style that should be a token.
+9. **Contract creep** — `Frame`, `Counters`, `applyStepsToArray` and the pre-existing test
+   files untouched; `ctx` genuinely optional everywhere.
+10. **Removal completeness** — no shell/radix residue anywhere, including docs and deep
+    links.
+11. **Frozen files** — `src/components/three/**` has zero diff.
+
+**Acceptance criteria**
+
+- Every finding filed as a new numbered task in this file with a severity, or explicitly
+  waived with a stated reason.
+- At least one hand-traced example per algorithm family (comparison-swap, divide-and-
+  conquer, heap) recorded in the review.
+
+---
+
+## qa-tester
+
+### WQ1. Real-browser sign-off for both views — `partial`
+
+> Covered: all 6 algorithms × 3 views mount and step without error; all 6 run to
+> completion with a correctly sorted result; n=200 across quick/merge/heap/bubble
+> with no page overflow; quicksort worst case (reversed, n=200) caps at depth 12
+> with "181 deeper calls hidden"; heap at n=200 has 36px spacing against 15px
+> radius (no overlap); swap arcs and write pulses fire. **Not covered:** light
+> theme, mobile/tablet breakpoints, cinema mode, scrubbing backward through the
+> new views, and sound. Also note the preview pane was hidden throughout, which
+> throttles rAF — timing-sensitive checks were unreliable and one apparent
+> failure turned out to be a DOM-read race, not a defect.
+
+**Depends on:** WR1 and any fixes it generates.
+**Skills:** `project-qa-check`, `engineering:testing-strategy`, `security-review`.
+
+For **each of the six algorithms**, in **both** the Array and the Structure view:
+
+- n = 5, 16, 64, 200; speeds 1 and 5; play, pause, step forward, step back, reset.
+- A hand-typed custom array, including duplicates and an already-sorted input.
+- The empty state (no array yet) — both views must show it and must never invent data.
+- Scrub to the middle, step back 20 steps, and confirm groups, cursors, callout, tree and
+  ladder all agree with the array on screen.
+- Keyboard only: space / arrows / R, plus tabbing to the pass-ladder rows.
+- Reduced motion on (OS setting), 375 px viewport, and cinema mode.
+
+Verify the pedagogy, not just the pixels:
+
+- Pick three random paused steps per algorithm; check the invariant line is a **true**
+  statement about the array shown.
+- Pick three random paused steps per algorithm; check every group label is true of the
+  cells it spans (especially quicksort's `< pivot` / `>= pivot`).
+- Check the comparison callout's values against the cells — and for merge, against a hand
+  trace. This is the known trap.
+- Confirm the tree never shows a call that has not happened.
+
+Also: confirm `src/components/three/**` is unchanged; confirm no shell/radix residue in
+UI, README or docs and that `?algo=shell` degrades gracefully; update `docs/STRUCTURE.md`
+with the new files; confirm the README describes the six algorithms and the two rebuilt
+views accurately; run the four gates.
+
+**Acceptance criteria**
+
+- A pass/fail table: 6 algorithms x 2 views x 4 sizes, with every failure written up as a
+  new task in this file.
+- Explicit statements of what you observed for the merge callout check, the group-label
+  spot-checks and the invariant spot-checks.
+- No console errors or warnings anywhere. All four gates green; report the final test
+  count.
+- A sign-off line stating the feature meets `docs/PLAN.md` §WS9, or naming exactly which
+  criteria it misses.

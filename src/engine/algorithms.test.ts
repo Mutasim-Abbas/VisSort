@@ -57,7 +57,7 @@ describe('sorting algorithms', () => {
         expect(c.writes).toBeGreaterThanOrEqual(0);
         expect(c.accesses).toBeGreaterThanOrEqual(0);
         if (algo.writesModel === 'overwrite') {
-          // Merge / radix must never emit a swap step.
+          // Overwrite-model sorts (merge) must never emit a swap step.
           expect(c.swaps).toBe(0);
         }
       });
@@ -103,9 +103,7 @@ describe('recursion annotations (Tree view)', () => {
     // The root divides first, and each range is divided BEFORE it combines.
     expect(steps[0]).toMatchObject({ type: 'divide', lo: 0, hi: 3 });
     for (const c of combines) {
-      const dIdx = steps.findIndex(
-        (s) => s.type === 'divide' && s.lo === c.lo && s.hi === c.hi,
-      );
+      const dIdx = steps.findIndex((s) => s.type === 'divide' && s.lo === c.lo && s.hi === c.hi);
       const cIdx = steps.indexOf(c);
       expect(dIdx).toBeGreaterThanOrEqual(0);
       expect(dIdx).toBeLessThan(cIdx);
