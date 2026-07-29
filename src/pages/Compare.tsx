@@ -133,8 +133,6 @@ const CHART_COLORS: Record<string, string> = {
   merge: '#45c4ff',
   quick: '#8ce046',
   heap: '#22c58b',
-  shell: '#f5b417',
-  radix: '#5a9bff',
 };
 
 interface Series {
@@ -376,21 +374,27 @@ export default function Compare() {
         Race &amp; performance
       </h1>
       <p className="mt-2 max-w-2xl text-secondary">
-        Two algorithms, the same shuffled array, one shared clock. The winner isn&apos;t faster —
-        it simply needs fewer operations. That difference <em>is</em> Big-O.
+        Two algorithms, the same shuffled array, one shared clock. The winner isn&apos;t faster — it
+        simply needs fewer operations. That difference <em>is</em> Big-O.
       </p>
 
       {/* -------- Race controls -------- */}
       <div className="liquid-glass mt-8 flex flex-wrap items-center gap-3 rounded-[1.25rem] p-4">
         <div className="min-w-[180px] flex-1">
-          <label htmlFor="algoA" className="mb-1 block text-[11px] uppercase tracking-wide text-muted">
+          <label
+            htmlFor="algoA"
+            className="mb-1 block text-[11px] uppercase tracking-wide text-muted"
+          >
             Lane A
           </label>
           <AlgoSelect id="algoA" value={keyA} onChange={setKeyA} disabled={running} />
         </div>
         <span className="mt-5 font-display text-2xl italic text-accent">vs</span>
         <div className="min-w-[180px] flex-1">
-          <label htmlFor="algoB" className="mb-1 block text-[11px] uppercase tracking-wide text-muted">
+          <label
+            htmlFor="algoB"
+            className="mb-1 block text-[11px] uppercase tracking-wide text-muted"
+          >
             Lane B
           </label>
           <AlgoSelect id="algoB" value={keyB} onChange={setKeyB} disabled={running} />
@@ -481,8 +485,8 @@ export default function Compare() {
           Execution scaling
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-secondary">
-          Measured live in your browser: every selected algorithm really sorts random arrays of
-          each size, and we plot the actual operations performed. Watch O(n²) curves leave the
+          Measured live in your browser: every selected algorithm really sorts random arrays of each
+          size, and we plot the actual operations performed. Watch O(n²) curves leave the
           O(n&nbsp;log&nbsp;n) family behind.
         </p>
 

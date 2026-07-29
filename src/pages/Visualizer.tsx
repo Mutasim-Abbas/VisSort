@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrayView } from '../components/ArrayView';
 import { TreeView } from '../components/TreeView';
 import { ViewModeSwitch } from '../components/ViewModeSwitch';
-import { TREE_CAPABLE, type ViewMode } from '../components/viewMode';
+import { type ViewMode } from '../components/viewMode';
 import { Controls } from '../components/Controls';
 import { CustomArrayInput } from '../components/CustomArrayInput';
 import { StatsPanel } from '../components/StatsPanel';
@@ -25,11 +25,12 @@ const CraneView = lazy(() =>
 
 /**
  * Steps per second for each 1–5 speed level. The crane stages a full
- * pick-and-place per step, so level 1 is a deliberate ~2.5s per step rather
- * than the 1 step/s the raw slider used to bottom out at — the animation can
- * never outrun the step interval without being cut off mid-lift.
+ * pick-and-place per step, so the ladder stays slow enough that the lift and
+ * place still read — the animation can never outrun the step interval without
+ * being cut off mid-lift. Level 1 is ~1.4s per step: unhurried, but no longer
+ * the 2.5s crawl it used to open on.
  */
-const STEP_RATE = [0.4, 0.7, 1.2, 2, 3.5] as const;
+const STEP_RATE = [0.7, 1.1, 1.7, 2.5, 3.5] as const;
 const rateOf = (level: number) => STEP_RATE[Math.min(STEP_RATE.length, Math.max(1, level)) - 1];
 
 function isAlgorithmKey(v: string | null): v is AlgorithmKey {
@@ -250,11 +251,7 @@ export default function Visualizer() {
       {!cinema && (
         <Controls
           algorithmKey={algorithmKey}
-          onAlgorithm={(k) => {
-            setAlgorithmKey(k);
-            // Tree view only exists for divide-and-conquer/heap algorithms.
-            if (!TREE_CAPABLE.includes(k) && viewMode === 'tree') setViewMode('columns');
-          }}
+          onAlgorithm={setAlgorithmKey}
           preset={preset}
           onPreset={(p) => {
             setPreset(p);
@@ -283,7 +280,7 @@ export default function Visualizer() {
           className={`flex flex-col gap-3 ${cinema ? 'min-h-[calc(100vh-260px)]' : 'min-h-[340px] lg:min-h-0'}`}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <ViewModeSwitch mode={viewMode} onMode={setViewMode} algorithmKey={algorithmKey} />
+            <ViewModeSwitch mode={viewMode} onMode={setViewMode} />
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -359,12 +356,22 @@ export default function Visualizer() {
                 </Suspense>
               )}
               {viewMode === 'array' && (
-                <ArrayView frame={frame} speed={stepsPerSec} statusLabel={statusLabel} />
+                <ArrayView
+                  algorithmKey={algorithmKey}
+                  frame={frame}
+                  steps={steps}
+                  speed={stepsPerSec}
+                  statusLabel={statusLabel}
+                  onShrink={(n) => {
+                    setSize(n);
+                    clearCustom();
+                    setUseGenerated(true);
+                  }}
+                />
               )}
               {viewMode === 'tree' && (
                 <TreeView
                   algorithmKey={algorithmKey}
-                  input={array}
                   frame={frame}
                   steps={steps}
                   speed={stepsPerSec}

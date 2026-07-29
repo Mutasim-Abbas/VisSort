@@ -60,9 +60,108 @@
   color: var(--on-state);
 }
 
+/* Proportional value fill behind the number, tying this view back to Columns. */
+.cell-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background-color: color-mix(in srgb, var(--color-bar-default) 45%, transparent);
+  pointer-events: none;
+  transition: height min(160ms, calc(var(--step-ms, 25ms) * 0.8)) var(--ease-out);
+}
+/* On a state-coloured cell the fill would muddy the state; fade it out instead. */
+.cell-comparing .cell-fill,
+.cell-swapping .cell-fill,
+.cell-overwriting .cell-fill,
+.cell-pivot .cell-fill,
+.cell-sorted .cell-fill {
+  background-color: rgb(0 0 0 / 0.16);
+}
+.no-transitions .cell-fill {
+  transition: none !important;
+}
+
+/* Group panels and brackets resize with their group — they never fade out and
+   back in, because a bracket blinking every step reads as noise, not structure. */
+.group-panel,
+.group-bracket,
+.cursor-pill {
+  transition:
+    transform clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-in-out),
+    width clamp(40ms, calc(var(--step-ms, 25ms) * 0.8), 180ms) var(--ease-in-out),
+    background-color min(120ms, calc(var(--step-ms, 25ms) * 0.8)) linear,
+    border-color min(120ms, calc(var(--step-ms, 25ms) * 0.8)) linear;
+}
+.no-transitions .group-panel,
+.no-transitions .group-bracket,
+.no-transitions .cursor-pill {
+  transition: none !important;
+}
+
+/* A swap draws its arc once per step; a write pulses its destination cell. Both
+   are motion, so both disappear entirely under reduced-motion and at snap speed
+   (where the component stops rendering them at all). */
+.swap-arc {
+  stroke-dasharray: 1 0;
+  animation: swap-arc-in min(220ms, calc(var(--step-ms, 200ms) * 0.9)) var(--ease-out);
+}
+@keyframes swap-arc-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+}
+
+.write-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 1.5px solid var(--color-bar-overwriting);
+  pointer-events: none;
+  animation: write-pulse-out min(260ms, calc(var(--step-ms, 200ms) * 0.9)) var(--ease-out);
+}
+@keyframes write-pulse-out {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swap-arc,
+  .write-pulse {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cell {
     transition-property: background-color, border-color, color;
+    transition-duration: var(--duration-fast);
+  }
+  .cell-fill,
+  .group-panel,
+  .group-bracket,
+  .cursor-pill {
     transition-duration: var(--duration-fast);
   }
 }

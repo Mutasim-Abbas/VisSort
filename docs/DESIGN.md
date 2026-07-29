@@ -376,7 +376,7 @@ WCAG 1.4.11 (non-text contrast, ≥3:1 vs adjacent background) verified for ever
 Hue alone is never the only differentiator — every state also differs in **luminance step and/or a shape/motion cue**:
 
 - **Deuteranopia/protanopia (red-green, ~8% of men):** the warm cluster (comparing amber / swapping vermillion) collapses toward yellow-brown — they remain separated by a large luminance gap (dark: 12.24 vs 6.86 vs canvas) plus swapping's glow+pulse. Sorted is deliberately **teal-leaning green** so it shifts toward blue for red-green CVD, away from the warm cluster.
-- **States that co-occur on screen** get shape cues: pivot (persists through a quicksort pass) carries a chevron marker; overwriting (merge/radix writes) carries a white top cap and is transient by nature, vs. sorted which is persistent and static.
+- **States that co-occur on screen** get shape cues: pivot (persists through a quicksort pass) carries a chevron marker; overwriting (merge sort's writes) carries a white top cap and is transient by nature, vs. sorted which is persistent and static.
 - Grayscale check: the six dark values land at distinct luminance tiers (3.65 / 12.24 / 6.86 / 7.18 / 9.74 / 9.54 vs canvas) and every ambiguous near-tie (overwriting≈sorted, pivot≈swapping) is disambiguated by marker/cap/glow/motion as above.
 
 ### 5.3 Bar anatomy & rendering rules (perf-critical)
@@ -757,3 +757,109 @@ a lime **"Sorted!"** pill.
   200 ms debounce, toggling view modes faster than that drops the pending
   measurement and the canvas is stranded at its unsized 300×150 default,
   rendering nothing. Verified with 16 rapid toggles: one canvas, no context loss.
+
+---
+
+## 12. Array & Structure views — the "true structure" system
+
+Added when the Array and Tree views were rebuilt. The user's brief for the Array
+view was explicit: *"we can make it simple but have an idea like not just blocks
+divide — divide the array into groups visually according to the sorting method."*
+So the visual interest here comes from **the structure being true**, not from
+effects. No 3D, no glass stacking. What earns parity with the Crane is precision,
+legible motion and typography — the same instrument, flattened.
+
+### 12.1 Where the structure comes from
+
+Nothing in these views infers structure from pixels or re-implements an
+algorithm. Each generator declares its own carve-up on every step via
+`Step.ctx.groups` (see `src/engine/types.ts`), and the views render exactly that.
+
+**Contract:** a step's `ctx` describes the array **after** that step applies.
+Views read it with `contextAt(steps, frame.index)`, and the frame at index `k` is
+the state after `steps[k-1]`. Building groups from the pre-step state puts every
+label one step behind — during development this produced a `>= 75` bracket
+spanning the value `39`. Unit tests written from the same assumption did not
+catch it; rendering it did.
+
+**Invariant:** groups are non-overlapping, ascending, and cover exactly `0…n-1`.
+Enforced in `stepContext.test.ts` for all six algorithms across every input shape.
+
+"Final" is deliberately **not** a group kind. It is derived from
+`frame.state === 'sorted'`, so grouping and finality are two independent channels
+that cannot disagree.
+
+### 12.2 Group tints
+
+Low-saturation fills over the existing palette. The per-cell state colours
+(`comparing`, `swapping`, `overwriting`, `pivot`, `sorted`) must always win — a
+group tint is context, not emphasis.
+
+| Kind | Fill | Border | Reads as |
+| --- | --- | --- | --- |
+| `ordered` | `--lime` 12% | `--lime` 34% | in order, but *not* final |
+| `merged` | `--lime` 12% | `--lime` 30% | written, in order |
+| `scanned` | `--accent` 10% | `--accent` 30% | already examined this pass |
+| `heap` | `--accent` 12% | `--accent` 30% | the live max-heap |
+| `lessThan` | `--color-bar-overwriting` 14% | 34% | proven `< pivot` |
+| `greaterThan` | `--color-bar-swapping` 13% | 32% | proven `>= pivot` |
+| `pivot` | `--color-bar-pivot` 20% | 45% | the pivot cell |
+| `unsorted` / `unexamined` | `--color-bar-default` 22% / 14% | `--border-subtle` | in play, no finer structure |
+| `outside` | transparent | none | another branch / already locked |
+
+`ordered` vs `outside` is load-bearing for insertion sort: its prefix is sorted
+but a later value can still slide into the middle of it. Rendering that as
+"final" would teach the wrong thing.
+
+### 12.3 Array view geometry
+
+- Groups are separated by **22 px** versus **6 px** between cells inside a group.
+  That ratio is what makes the carve-up read as separate blocks rather than a
+  colour wash — it is the core of the user's request and should not be reduced.
+- Each group gets a tinted backing panel (`+3 px` bleed) and a labelled bracket
+  above it. Panels and brackets **resize**; they never fade out and back in,
+  because a bracket blinking every step reads as noise rather than structure.
+- Cells carry a proportional value fill behind the number, tying this view back
+  to the Columns bars. On a state-coloured cell the fill becomes a neutral
+  darkening so it cannot muddy the state colour.
+- Below **22 px** cell width, values are hidden and cells become pure state
+  chips, with a one-line "shrink to 24" offer reusing the Crane's existing
+  `onShrink` callback.
+- The row does not wrap. It scrolls horizontally with cursor auto-follow; a
+  manual scroll wins for **3 s** so the user can look around without being
+  yanked back.
+
+### 12.4 Motion
+
+| Event | Treatment | Duration |
+| --- | --- | --- |
+| swap | low SVG arc between the exchanging positions | `min(220ms, 0.9 × step)` |
+| overwrite | outward scale pulse on the destination cell | `min(260ms, 0.9 × step)` |
+| group resize | `transform` + `width` transition | `clamp(40ms, 0.8 × step, 180ms)` |
+
+All motion is dropped entirely at `SNAP_SPEED` and under
+`prefers-reduced-motion`; colour feedback survives.
+
+### 12.5 Structure view
+
+One shell, three bodies, chosen by what the algorithm actually is:
+
+- **Recursion tree** (merge, quick) — real tree layout, children centred beneath
+  their parent and siblings spaced by subtree width. Node states are `pending`
+  (dashed), `active` (accent), `combining` (`--color-bar-overwriting` with a
+  progress fill from real write counts) and `returned` (lime).
+- **Heap tree** (heapsort) — layout computed from `n` and depth alone, never from
+  the measured container (the previous version derived height from a value that
+  depended on it). Minimum node spacing **36 px** against radius **15 px**;
+  verified non-overlapping at n=200. Only the live heap is drawn — extracted
+  values move to a "final" strip below.
+- **Pass ladder** (bubble, insertion, selection) — one row per pass with its
+  working window and comparison cost, so the quadratic shape reads as an area.
+
+Shared across all three: a **pinned array ribbon** with the active range
+bracketed. This is the tree↔array link the old view lacked entirely — it drew
+ranges like `4–7` with nothing on screen connecting those numbers to elements.
+
+Depth is capped at **12** with an honest count of what is hidden; quicksort's
+worst case at n=200 is depth ~200, which previously rendered a ~5000 px column.
+Both trees use a real `viewBox`.

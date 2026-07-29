@@ -67,22 +67,4 @@ export const PSEUDOCODE: Record<AlgorithmKey, PseudoLine[]> = {
     L(3, 'swap the root below its larger child'),
     L(3, 'repeat until the heap property holds'),
   ],
-  shell: [
-    L(0, 'procedure shellSort(A):'),
-    L(1, 'gap ← 1;  while gap < n/3:  gap ← 3·gap + 1'),
-    L(1, 'while gap > 0:'),
-    L(2, 'for i ← gap to n − 1:'),
-    L(3, 'j ← i'),
-    L(3, 'while j ≥ gap and A[j−gap] > A[j]:'),
-    L(3, '    swap A[j−gap], A[j];  j ← j − gap'),
-    L(2, 'gap ← ⌊gap / 3⌋'),
-  ],
-  radix: [
-    L(0, 'procedure radixSortLSD(A):'),
-    L(1, 'for digit ← least significant to most:'),
-    L(2, 'count occurrences of each digit value 0–9'),
-    L(2, 'prefix-sum the counts into bucket offsets'),
-    L(2, 'write every element into its bucket slot'),
-    L(1, '▹ no comparisons anywhere — swaps stay 0'),
-  ],
 };

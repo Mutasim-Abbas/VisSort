@@ -5,18 +5,8 @@ import { selection } from './algorithms/selection';
 import { merge } from './algorithms/merge';
 import { quick } from './algorithms/quick';
 import { heap } from './algorithms/heap';
-import { shell } from './algorithms/shell';
-import { radix } from './algorithms/radix';
 
-export type AlgorithmKey =
-  | 'bubble'
-  | 'insertion'
-  | 'selection'
-  | 'merge'
-  | 'quick'
-  | 'heap'
-  | 'shell'
-  | 'radix';
+export type AlgorithmKey = 'bubble' | 'insertion' | 'selection' | 'merge' | 'quick' | 'heap';
 
 export interface Complexity {
   best: string;
@@ -112,36 +102,6 @@ export const ALGORITHMS: readonly AlgorithmMeta[] = [
     },
     description:
       'Turns the array into a binary max-heap, then repeatedly swaps the largest element to the end and restores the heap over the shrinking front. O(n log n) worst-case with no extra memory, though its scattered access pattern makes it slower than quicksort in practice.',
-  },
-  {
-    key: 'shell',
-    name: 'Shell Sort',
-    generator: shell,
-    writesModel: 'swap',
-    stable: false,
-    complexity: {
-      best: 'O(n log n)',
-      average: 'O(n^1.25)',
-      worst: 'O(n²)',
-      space: 'O(1)',
-    },
-    description:
-      'A generalisation of insertion sort that first sorts elements far apart (a large “gap”), then narrows the gap until it reaches 1. The early long-distance moves clear most disorder, so the final pass is nearly linear. Performance depends on the gap sequence (Knuth’s 3h+1 here).',
-  },
-  {
-    key: 'radix',
-    name: 'Radix Sort (LSD)',
-    generator: radix,
-    writesModel: 'overwrite',
-    stable: true,
-    complexity: {
-      best: 'O(nk)',
-      average: 'O(nk)',
-      worst: 'O(nk)',
-      space: 'O(n + k)',
-    },
-    description:
-      'A non-comparison sort for integers: it distributes values into buckets by their least-significant digit, then the next digit, and so on. With a fixed number of digits k it runs in linear O(nk) time — no element is ever compared to another, so its swap count is always zero.',
   },
 ];
 

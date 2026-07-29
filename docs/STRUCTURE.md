@@ -29,10 +29,15 @@ VisSort/
    │  ├─ replay.ts          # Apply steps to an array (used by tests)
    │  ├─ player.ts          # Visual-state engine driven by the step list
    │  ├─ registry.ts        # Algorithm metadata (name, Big-O, stability, …)
+   │  ├─ stepContext.ts     # Derivations over Step.ctx: groups, invariants,
+   │  │                     #   compare outcomes, the pass ladder
+   │  ├─ treeProgress.ts    # Recursion-tree model derived from emitted steps
    │  ├─ algorithms/        # One pure step generator per algorithm
    │  │  ├─ shared.ts        bubble.ts     insertion.ts  selection.ts
-   │  │  ├─ merge.ts         quick.ts      heap.ts       shell.ts   radix.ts
+   │  │  ├─ merge.ts         quick.ts      heap.ts
    │  ├─ algorithms.test.ts # Correctness matrix (replay-based)
+   │  ├─ stepContext.test.ts   # Group cover + group-truth invariants
+   │  ├─ treeProgress.test.ts  # Tree structure, node lifecycle, layout
    │  └─ player.test.ts     # Playback-path, scrub, counter, reset tests
    │
    ├─ data/
@@ -46,6 +51,15 @@ VisSort/
    ├─ components/
    │  ├─ Header.tsx  ThemeToggle.tsx  Controls.tsx  Transport.tsx
    │  ├─ BarCanvas.tsx  StatsPanel.tsx  InfoPanel.tsx  Legend.tsx
+   │  ├─ ArrayView.tsx      # The row, divided into the algorithm's own groups
+   │  ├─ TreeView.tsx       # Structure-view shell; picks one of the three below
+   │  ├─ ViewModeSwitch.tsx  viewMode.ts
+   │  ├─ tree/
+   │  │  ├─ ArrayRibbon.tsx    # Pinned array strip — the tree↔array link
+   │  │  ├─ RecursionTree.tsx  # merge / quick
+   │  │  ├─ HeapTree.tsx       # heapsort
+   │  │  └─ PassLadder.tsx     # bubble / insertion / selection
+   │  ├─ three/             # The 3D crane stage (Columns view)
    │  └─ icons.tsx
    │
    ├─ styles/
