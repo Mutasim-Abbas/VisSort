@@ -7,13 +7,16 @@ import type { Step, BarState } from '../../engine/types';
 import type { PlaybackStatus } from '../../hooks/usePlayback';
 import type { AlgorithmKey } from '../../engine/registry';
 import { PSEUDOCODE } from '../../engine/pseudocode';
+import { buildShelf, comparedSlots, type ShelfTimeline } from './shelf';
 
 /**
  * The "Crane" view (PLAN.md §FC1–FC9): the sort staged as a gantry crane lifting
- * numbered boxes on a shelf. It is a pure consumer of the same {@link Frame} the
- * 2D views receive — the engine is untouched. `frame` has already *applied* the
- * step, so every box lerps from where it is rendered toward its post-step
- * transform, and the claw is choreographed on top to read as the cause.
+ * numbered boxes on a shelf. Box placement comes from {@link buildShelf}, which
+ * replays the same steps as physical moves; colours still come from the
+ * {@link Frame} the 2D views receive — the engine is untouched. The shelf has
+ * already *applied* the step, so every box lerps from where it is rendered
+ * toward its post-step transform, and the claw is choreographed on top to read
+ * as the cause.
  */
 
 /** Full 3D staging renders up to this many boxes (PLAN §FC5). */
@@ -115,7 +118,14 @@ function makeLabelTexture(value: number): THREE.CanvasTexture {
 }
 
 interface SceneProps {
-  frame: Frame;
+  /** The run being staged; a new one re-seeds the shelf instead of tweening. */
+  run: ShelfTimeline;
+  /** Steps applied so far. */
+  index: number;
+  /** posOf[id] / values[id] / state[id] for each physical box. */
+  posOf: number[];
+  values: number[];
+  state: BarState[];
   step: Step | undefined;
   snap: boolean;
   reduced: boolean;
@@ -165,16 +175,28 @@ interface Motion {
   /** Progress 0→1, and the duration in seconds this step animates over. */
   t: number;
   dur: number;
-  /** The frame index this timeline was built for, and the array identity. */
+  /** The frame index this timeline was built for, and the run it belongs to. */
   index: number;
-  key: string;
+  run: ShelfTimeline | null;
 }
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
-function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: SceneProps) {
-  const n = frame.heights.length;
+function CraneScene({
+  run,
+  index,
+  posOf,
+  values,
+  state,
+  step,
+  snap,
+  reduced,
+  done,
+  stepMs,
+  playing,
+}: SceneProps) {
+  const n = posOf.length;
   const colors = useMemo(readColors, []);
 
   const slot = WORLD_W / Math.max(1, n);
@@ -182,11 +204,13 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   const boxD = Math.min(0.75, Math.max(0.28, slot * 0.72));
   const showLabels = n <= LABEL_MAX;
 
+  // Scaled against the whole run, not the current step, so a box never
+  // changes height just because some other value was repainted.
   const maxValue = useMemo(() => {
     let m = 1;
-    for (const v of frame.heights) if (v > m) m = v;
+    for (const vs of run.values) for (const v of vs) if (v > m) m = v;
     return m;
-  }, [frame.heights]);
+  }, [run]);
 
   const xOfPos = (pos: number) => (pos - (n - 1) / 2) * slot;
   const hOfValue = (v: number) => BOX_H_MIN + (v / maxValue) * (BOX_H_MAX - BOX_H_MIN);
@@ -237,7 +261,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
     t: 1,
     dur: 0,
     index: -1,
-    key: '',
+    run: null,
   });
 
   const clawX = useRef(0);
@@ -246,21 +270,22 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
   useFrame(({ clock }, delta) => {
     const m = motion.current;
     const instant = snap || reduced;
-    const key = `${n}:${maxValue}`;
 
-    // A new array (or a new size) re-seeds everything in place — no tweening
-    // between two unrelated data sets.
-    if (m.key !== key) {
-      m.key = key;
-      m.index = frame.index;
+    // A new run re-seeds everything in place — no tweening between two
+    // unrelated data sets. This keys on the run itself: generated arrays all
+    // share a size and a maximum, so keying on those left the previous
+    // array's box heights standing under the new array's labels.
+    if (m.run !== run) {
+      m.run = run;
+      m.index = index;
       m.t = 1;
       m.dur = 0;
       m.carriedId = -1;
       m.focus = 0;
       m.prevI = m.prevJ = -1;
       for (let id = 0; id < n; id++) {
-        const x = xOfPos(frame.posOf[id]);
-        const h = hOfValue(frame.heights[id]);
+        const x = xOfPos(posOf[id]);
+        const h = hOfValue(values[id]);
         m.fromX[id] = m.toX[id] = m.curX[id] = x;
         m.fromH[id] = m.toH[id] = m.curH[id] = h;
       }
@@ -269,11 +294,11 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
     }
 
     // Open a fresh timeline whenever the player moved to another step.
-    if (m.index !== frame.index) {
+    if (m.index !== index) {
       // Scrubbing or resetting jumps more than one step — land immediately
       // rather than animating through positions the player never showed.
-      const jumped = Math.abs(frame.index - m.index) > 1;
-      m.index = frame.index;
+      const jumped = Math.abs(index - m.index) > 1;
+      m.index = index;
       m.carriedId = -1;
       m.liftAmp = 0;
 
@@ -281,14 +306,18 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       for (let id = 0; id < n; id++) {
         m.fromX[id] = m.curX[id];
         m.fromH[id] = m.curH[id];
-        m.toX[id] = xOfPos(frame.posOf[id]);
-        m.toH[id] = hOfValue(frame.heights[id]);
+        m.toX[id] = xOfPos(posOf[id]);
+        m.toH[id] = hOfValue(values[id]);
 
-        // Only the box travelling RIGHT is craned over; its partner slides
-        // along the shelf beneath it. Lifting both makes them intersect.
+        // Only the box travelling FURTHEST is craned over; everything else that
+        // moves slides along the shelf beneath it. Lifting both makes them
+        // intersect. A merge write carries one box left past a run that each
+        // shuffle right one slot; a swap's two boxes tie, and the one heading
+        // right is the one lifted.
         const span = m.toX[id] - m.fromX[id];
-        if (span > 0.001 && span > widest) {
-          widest = span;
+        const dist = Math.abs(span);
+        if (dist > 0.001 && (dist > widest + 0.001 || (dist > widest - 0.001 && span > 0))) {
+          widest = dist;
           m.carriedId = id;
         }
       }
@@ -305,14 +334,15 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       // Follow the algorithm's cursor across the shelf.
       if (step) {
         if (step.type === 'compare') {
-          const movedI = step.i !== m.prevI;
-          const movedJ = step.j !== m.prevJ;
+          const [ci, cj] = comparedSlots(step);
+          const movedI = ci !== m.prevI;
+          const movedJ = cj !== m.prevJ;
           // Exactly one of them advancing identifies the scanning pointer; when
           // both move (bubble's adjacent pair, merge's two runs) either reads as
           // a sweep, so take the left one.
-          m.focus = movedI && !movedJ ? step.i : movedJ && !movedI ? step.j : step.i;
-          m.prevI = step.i;
-          m.prevJ = step.j;
+          m.focus = movedI && !movedJ ? ci : movedJ && !movedI ? cj : ci;
+          m.prevI = ci;
+          m.prevJ = cj;
         } else if (step.type === 'overwrite' || step.type === 'markPivot') {
           m.focus = step.index;
         } else if (step.type === 'swap') {
@@ -411,7 +441,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
       if (step) {
         toX = xOfPos(m.focus);
         if (step.type === 'overwrite') {
-          const overId = frame.posOf.findIndex((p) => p === m.focus);
+          const overId = posOf.findIndex((p) => p === m.focus);
           const top = overId >= 0 ? m.curH[overId] : 1;
           toY = Math.min(CLAW_PARK_Y, top + JAW_GAP + 0.2);
         }
@@ -455,14 +485,14 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
 
       const mat = mats.current[id];
       if (mat) {
-        const state = frame.state[id];
-        const target = colors[state] ?? colors.default;
+        const s = state[id];
+        const target = colors[s] ?? colors.default;
         // Materials are born white; snap the first frame so no box flashes.
         const cf = instant || !mat.userData.tinted ? 1 : Math.min(1, delta * 14);
         mat.userData.tinted = true;
         mat.color.lerp(target, cf);
         mat.emissive.lerp(target, cf);
-        mat.emissiveIntensity = EMISSIVE[state] ?? EMISSIVE.default;
+        mat.emissiveIntensity = EMISSIVE[s] ?? EMISSIVE.default;
       }
     }
 
@@ -703,7 +733,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
           ref={(el) => {
             groups.current[id] = el;
           }}
-          position={[xOfPos(frame.posOf[id]), 0, 0]}
+          position={[xOfPos(posOf[id]), 0, 0]}
         >
           <mesh
             ref={(el) => {
@@ -727,7 +757,7 @@ function CraneScene({ frame, step, snap, reduced, done, stepMs, playing }: Scene
               position={[0, 0.5, boxD / 2 + 0.012]}
             >
               <planeGeometry args={[boxW * 0.72, boxW * 0.72]} />
-              <meshBasicMaterial map={labelTex(Math.round(frame.heights[id]))} transparent />
+              <meshBasicMaterial map={labelTex(Math.round(values[id]))} transparent />
             </mesh>
           )}
         </group>
@@ -797,8 +827,32 @@ function CameraRig({ reduced, done }: { reduced: boolean; done: boolean }) {
   return null;
 }
 
+/**
+ * What colour each box wears. The frame knows which *slots* are being compared,
+ * swapped, written or are final; whichever box stands in that slot on the shelf
+ * wears it.
+ */
+function boxStates(frame: Frame, posOf: number[], step: Step | undefined): BarState[] {
+  const bySlot: BarState[] = [];
+  frame.posOf.forEach((slot, id) => {
+    bySlot[slot] = frame.state[id];
+  });
+  // Merge sort reports the left run's head where it started; on the shelf it
+  // has been shuffled up to the write head, so the highlight moves with it.
+  if (step?.type === 'compare') {
+    const [a, b] = comparedSlots(step);
+    if (a !== step.i) {
+      if (step.i !== b && bySlot[step.i] === 'comparing') bySlot[step.i] = 'default';
+      bySlot[a] = 'comparing';
+    }
+  }
+  return posOf.map((slot) => bySlot[slot] ?? 'default');
+}
+
 interface Props {
   frame: Frame;
+  /** The array the run started from — the shelf is replayed from it. */
+  input: readonly number[];
   steps: readonly Step[];
   speed: number;
   status: PlaybackStatus;
@@ -810,6 +864,7 @@ interface Props {
 
 export function CraneView({
   frame,
+  input,
   steps,
   speed,
   status,
@@ -817,9 +872,16 @@ export function CraneView({
   algorithmKey,
   onShrink,
 }: Props) {
-  const n = frame.heights.length;
-  const step = frame.index > 0 ? steps[frame.index - 1] : undefined;
+  const n = input.length;
+  // usePlayback publishes the new run's first frame one render after `steps`
+  // changes, so never index past the end of a shorter run.
+  const index = Math.min(frame.index, steps.length);
+  const step = index > 0 ? steps[index - 1] : undefined;
   const done = status === 'done';
+
+  const run = useMemo(() => (n > CRANE_MAX ? null : buildShelf(input, steps)), [n, input, steps]);
+  const posOf = run?.posOf[index];
+  const state = useMemo(() => (posOf ? boxStates(frame, posOf, step) : []), [frame, posOf, step]);
 
   const reduced =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -828,8 +890,10 @@ export function CraneView({
   const action = useMemo(() => {
     if (!step) return null;
     switch (step.type) {
-      case 'compare':
-        return { text: `a[${step.i}] > a[${step.j}] ?`, tone: 'text-bar-comparing' };
+      case 'compare': {
+        const [i, j] = comparedSlots(step);
+        return { text: `a[${i}] > a[${j}] ?`, tone: 'text-bar-comparing' };
+      }
       case 'swap':
         return { text: `swap a[${step.i}], a[${step.j}]`, tone: 'text-bar-swapping' };
       case 'overwrite':
@@ -844,7 +908,7 @@ export function CraneView({
   const lines = PSEUDOCODE[algorithmKey];
   const activeLine = step?.line;
 
-  if (n > CRANE_MAX) {
+  if (!run || !posOf) {
     return (
       <section
         aria-label="Sorting visualization"
@@ -898,7 +962,11 @@ export function CraneView({
           resize={{ scroll: false, debounce: { scroll: 0, resize: 0 } }}
         >
           <CraneScene
-            frame={frame}
+            run={run}
+            index={index}
+            posOf={posOf}
+            values={run.values[index]}
+            state={state}
             step={step}
             snap={speed >= SNAP_SPEED}
             reduced={reduced}

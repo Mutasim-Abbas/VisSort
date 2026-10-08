@@ -342,6 +342,7 @@ export default function Visualizer() {
                 >
                   <CraneView
                     frame={frame}
+                    input={array}
                     steps={steps}
                     speed={stepsPerSec}
                     status={status}
