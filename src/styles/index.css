@@ -60,6 +60,41 @@ html.theme-switching body *:not(.bar) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Entrances: a short, calm rise. Pages fade only — a transform on the */
+/* route wrapper would trap the Visualizer's sticky/fixed children.    */
+/* ------------------------------------------------------------------ */
+@keyframes vs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes vs-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.rise-in {
+  animation: vs-rise 0.25s ease both;
+}
+.page-enter {
+  animation: vs-fade 0.3s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  .page-enter {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Wordmark                                                            */
 /* ------------------------------------------------------------------ */
 .wordmark {
