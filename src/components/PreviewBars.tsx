@@ -2,8 +2,8 @@ import type { PreviewFrame } from '../engine/preview';
 
 interface Props {
   frame: PreviewFrame;
-  /** Gap between bars, px. */
-  gap: number;
+  /** Gap between bars (px, or any CSS length). */
+  gap: number | string;
   /** CSS border-radius of each bar. */
   radius: string;
   /** Height transition, ms. Colour always changes a touch faster. */
