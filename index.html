@@ -1,7 +1,5 @@
 <!doctype html>
-<!-- VisSort is dark-only by design: the six bar-state colors are tuned for a
-     near-black canvas, and the cinematic glass chrome depends on it. -->
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -10,6 +8,20 @@
       content="VisSort — watch classic sorting algorithms work, step by step. Play, pause, scrub, and see live statistics."
     />
     <title>VisSort — Sorting Algorithm Visualizer</title>
+    <!-- Pick the theme before first paint: the stored choice, else the system
+         preference. Runs inline so the page never flashes the wrong theme. -->
+    <script>
+      (function () {
+        var t;
+        try {
+          t = localStorage.getItem('vissort-theme');
+        } catch (e) {}
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
