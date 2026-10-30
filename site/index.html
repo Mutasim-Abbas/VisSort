@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<script src="./vissort-engine.js"></script>
+<style>
+:root{--font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;--bg:#F5F6F8;--surface:#FFFFFF;--surface-2:#F1F2F5;--fill:rgba(20,24,32,0.05);--fill-2:rgba(20,24,32,0.08);--text:#14161B;--text-2:#5A5F6A;--text-3:#7D828C;--hair:rgba(20,24,32,0.09);--shadow-sm:0 1px 2px rgba(20,24,32,.05),0 0 0 .5px rgba(20,24,32,.07);--shadow-md:0 10px 30px rgba(20,24,32,.07),0 1px 3px rgba(20,24,32,.05);--shadow-lg:0 18px 48px rgba(20,24,32,.13),0 2px 6px rgba(20,24,32,.06);--accent:#0A66F0;--accent-soft:color-mix(in srgb,var(--accent) 10%,transparent);--s-default:#B4BAC6;--s-comparing:#EFA52B;--s-swapping:#E5603F;--s-pivot:#8C5BE6;--s-overwriting:#D4479A;--s-sorted:#2FAE77}
+html[data-theme="dark"]{--bg:#0E0F12;--surface:#17181C;--surface-2:#1F2025;--fill:rgba(255,255,255,0.06);--fill-2:rgba(255,255,255,0.1);--text:#F2F3F5;--text-2:#A6AAB3;--text-3:#7E828B;--hair:rgba(255,255,255,0.08);--shadow-sm:0 1px 2px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.06);--shadow-md:0 10px 30px rgba(0,0,0,.35),0 0 0 .5px rgba(255,255,255,.06);--shadow-lg:0 18px 48px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--accent-soft:color-mix(in srgb,var(--accent) 22%,transparent);--s-default:#4E5666;--s-comparing:#F2B13A;--s-swapping:#FF7452;--s-pivot:#A57BFF;--s-overwriting:#EE5FAE;--s-sorted:#3DC487}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;transition:background-color .3s ease,color .3s ease}
+*{box-sizing:border-box}
+button{font-family:inherit}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+@keyframes vsRise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div style="min-height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--text);">
+
+  <header style="position:sticky; top:0; z-index:20; height:60px; flex:none; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:16px; padding:0 20px; background:color-mix(in srgb, var(--bg) 92%, transparent); border-bottom:0.5px solid var(--hair);">
+    <button onClick="{{ goHome }}" style="justify-self:start; display:flex; align-items:center; gap:10px; background:none; border:0; padding:6px 4px; cursor:pointer; color:var(--text);">
+      <span style="display:flex; align-items:flex-end; gap:2px; height:18px; width:20px;">
+        <span style="flex:1; height:45%; border-radius:2px; background:var(--accent); opacity:.45;"></span>
+        <span style="flex:1; height:100%; border-radius:2px; background:var(--accent);"></span>
+        <span style="flex:1; height:70%; border-radius:2px; background:var(--accent); opacity:.7;"></span>
+      </span>
+      <span style="font-size:17px; font-weight:650; letter-spacing:-0.01em;">VisSort</span>
+    </button>
+    <nav style="display:flex; gap:2px; padding:3px; border-radius:999px; background:var(--fill);">
+      <sc-for list="{{ navItems }}" as="it" hint-placeholder-count="3">
+        <button onClick="{{ it.go }}" style="border:0; cursor:pointer; padding:7px 16px; border-radius:999px; font-size:14px; font-weight:{{ it.weight }}; color:{{ it.fg }}; background:{{ it.bg }}; box-shadow:{{ it.shadow }}; transition:background-color .2s ease, color .2s ease;">{{ it.label }}</button>
+      </sc-for>
+    </nav>
+    <div style="justify-self:end; display:flex; align-items:center; gap:8px;">
+      <button onClick="{{ toggleTheme }}" title="Toggle light / dark" style="width:36px; height:36px; display:grid; place-items:center; border-radius:999px; border:0; background:var(--fill); color:var(--text-2); cursor:pointer;" style-hover="color:var(--text); background:var(--fill-2);">
+        <sc-if value="{{ dark }}" hint-placeholder-val="{{ false }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+        </sc-if>
+        <sc-if value="{{ light }}" hint-placeholder-val="{{ true }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+        </sc-if>
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+    <main data-screen-label="Home" style="flex:1; display:flex; flex-direction:column;">
+      <section style="width:100%; max-width:1120px; margin:0 auto; padding:96px 24px 0; display:flex; flex-direction:column; align-items:center; text-align:center;">
+        <p style="margin:0 0 18px; font-size:15px; font-weight:500; color:var(--text-2);">Six sorting algorithms, one decision at a time</p>
+        <h1 style="margin:0; font-size:clamp(44px, 7vw, 80px); line-height:1.02; font-weight:700; letter-spacing:-0.04em; text-wrap:balance;">See how sorting thinks.</h1>
+        <p style="margin:22px 0 0; max-width:600px; font-size:clamp(17px, 1.6vw, 21px); line-height:1.45; color:var(--text-2); text-wrap:pretty;">Watch every comparison, swap and write happen on your own numbers — as flat bars, or with a 3D crane that physically moves each value into place.</p>
+        <button onClick="{{ goVisualizer }}" style="margin-top:34px; display:flex; align-items:center; gap:8px; border:0; cursor:pointer; padding:14px 26px; border-radius:999px; background:var(--accent); color:#fff; font-size:17px; font-weight:600; box-shadow:0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent); transition:transform .2s cubic-bezier(.3,1.4,.5,1), filter .2s ease;" style-hover="transform:translateY(-1px); filter:brightness(1.06);" style-active="transform:scale(.98);">
+          Open the visualizer
+          <svg width="16" height="16" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </button>
+      </section>
+
+      <section style="width:100%; max-width:1120px; margin:64px auto 0; padding:0 24px;">
+        <div style="background:var(--surface); border-radius:28px; box-shadow:var(--shadow-md); padding:24px 28px 28px; display:flex; flex-direction:column; gap:20px;">
+          <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 24px;">
+            <div style="display:flex; align-items:baseline; gap:12px;">
+              <span style="font-size:19px; font-weight:650; letter-spacing:-0.01em;">{{ hero.name }}</span>
+              <span style="font-family:var(--mono); font-size:13px; color:var(--text-3);">{{ hero.avg }}</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <sc-for list="{{ heroTabs }}" as="t" hint-placeholder-count="6">
+                <button onClick="{{ t.go }}" title="{{ t.name }}" style="border:0; cursor:pointer; padding:5px 11px; border-radius:999px; font-size:13px; font-weight:500; background:{{ t.bg }}; color:{{ t.fg }}; transition:background-color .2s ease, color .2s ease;">{{ t.short }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="position:relative; height:clamp(220px, 34vw, 340px); display:flex; align-items:flex-end; gap:{{ hero.gap }}px;">
+            <sc-for list="{{ hero.bars }}" as="b" hint-placeholder-count="30">
+              <div style="position:relative; flex:1; height:100%;">
+                <div style="position:absolute; left:50%; transform:translateX(-50%); width:{{ b.w }}; bottom:{{ b.bottom }}; height:{{ b.hh }}; background:var(--s-{{ b.st }}); border-radius:{{ hero.radius }}; transition:height 110ms ease, background-color 110ms linear, bottom 110ms ease;"></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px 18px;">
+            <sc-for list="{{ hero.legend }}" as="l" hint-placeholder-count="4">
+              <span style="display:flex; align-items:center; gap:7px; font-size:13px; color:var(--text-2);"><span style="width:10px; height:10px; border-radius:3px; background:var(--s-{{ l.key }});"></span>{{ l.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section style="width:100%; max-width:1120px; margin:0 auto; padding:88px 24px 96px; display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:40px;">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <h3 style="margin:0; font-size:21px; font-weight:650; letter-spacing:-0.015em;">Your numbers</h3>
+          <p style="margin:0; font-size:16px; line-height:1.5; color:var(--text-2); text-wrap:pretty;">Type any list, or start from random, reversed, nearly-sorted or few-unique data. Up to 200 values.</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <h3 style="margin:0; font-size:21px; font-weight:650; letter-spacing:-0.015em;">Two ways to watch</h3>
+          <p style="margin:0; font-size:16px; line-height:1.5; color:var(--text-2); text-wrap:pretty;">Flat bars for the whole array, or a gantry crane that lifts each box and sets it down in its new slot.</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <h3 style="margin:0; font-size:21px; font-weight:650; letter-spacing:-0.015em;">Honest counts</h3>
+          <p style="margin:0; font-size:16px; line-height:1.5; color:var(--text-2); text-wrap:pretty;">Every comparison and write is counted from the real steps, so scrubbing backwards rewinds the statistics with you.</p>
+        </div>
+      </section>
+
+      <footer style="margin-top:auto; border-top:0.5px solid var(--hair);">
+        <div style="max-width:1120px; margin:0 auto; padding:22px 24px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; font-size:13px; color:var(--text-3);">
+          <span><span style="font-weight:600; color:var(--text-2);">VisSort</span> — sorting algorithm visualizer</span>
+          <span>Designed &amp; built by <span style="font-weight:500; color:var(--text-2);">Mutasim Abbas</span></span>
+        </div>
+      </footer>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ isGallery }}" hint-placeholder-val="{{ false }}">
+    <main data-screen-label="Gallery" style="flex:1; width:100%; max-width:1180px; margin:0 auto; padding:72px 24px 96px;">
+      <h1 style="margin:0; font-size:clamp(36px, 5vw, 52px); font-weight:700; letter-spacing:-0.035em;">Six algorithms</h1>
+      <p style="margin:14px 0 40px; max-width:560px; font-size:18px; line-height:1.45; color:var(--text-2); text-wrap:pretty;">Each preview is really sorting, right now, with its own method. Pick one to take the controls.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:20px;">
+        <sc-for list="{{ galleryCards }}" as="c" hint-placeholder-count="6">
+          <button onClick="{{ c.open }}" style="text-align:left; border:0; cursor:pointer; color:var(--text); background:var(--surface); border-radius:24px; padding:16px 16px 22px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; gap:18px; transition:transform .25s cubic-bezier(.3,1.3,.5,1), box-shadow .25s ease;" style-hover="transform:translateY(-3px); box-shadow:var(--shadow-md);">
+            <div style="height:132px; border-radius:16px; background:var(--surface-2); padding:18px 18px 14px; display:flex; align-items:flex-end; gap:5px;">
+              <sc-for list="{{ c.bars }}" as="b" hint-placeholder-count="14">
+                <div style="position:relative; flex:1; height:100%;">
+                  <div style="position:absolute; left:50%; transform:translateX(-50%); width:{{ b.w }}; bottom:{{ b.bottom }}; height:{{ b.hh }}; background:var(--s-{{ b.st }}); border-radius:{{ c.radius }}; transition:height 120ms ease, background-color 90ms linear, bottom 120ms ease;"></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:0 6px; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+                <span style="font-size:20px; font-weight:650; letter-spacing:-0.015em;">{{ c.name }}</span>
+                <span style="font-family:var(--mono); font-size:14px; color:var(--text);">{{ c.avg }}</span>
+              </div>
+              <p style="margin:0; font-size:15px; line-height:1.45; color:var(--text-2); text-wrap:pretty;">{{ c.blurb }}</p>
+            </div>
+            <div style="margin:0 6px; padding-top:14px; border-top:0.5px solid var(--hair); display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
+              <div style="display:flex; flex-direction:column; gap:3px;"><span style="font-size:12px; color:var(--text-3);">Best</span><span style="font-family:var(--mono); font-size:13px;">{{ c.best }}</span></div>
+              <div style="display:flex; flex-direction:column; gap:3px;"><span style="font-size:12px; color:var(--text-3);">Worst</span><span style="font-family:var(--mono); font-size:13px;">{{ c.worst }}</span></div>
+              <div style="display:flex; flex-direction:column; gap:3px;"><span style="font-size:12px; color:var(--text-3);">Space</span><span style="font-family:var(--mono); font-size:13px;">{{ c.space }}</span></div>
+            </div>
+            <div style="margin:0 6px; display:flex; align-items:center; gap:8px;">
+              <span style="display:flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; background:{{ c.stableBg }}; color:{{ c.stableFg }}; border:1px solid {{ c.stableBorder }};">{{ c.stableLabel }}</span>
+              <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:500; color:var(--text-2); background:var(--fill);">{{ c.model }}</span>
+              <span style="margin-left:auto; font-size:14px; font-weight:500; color:var(--accent);">Visualize →</span>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ isViz }}" hint-placeholder-val="{{ false }}">
+    <main data-screen-label="Visualizer" style="height:calc(100vh - 60px); min-height:560px; display:flex; gap:16px; padding:16px;">
+
+      <aside style="width:268px; flex:none; display:flex; flex-direction:column; gap:22px; padding:18px 16px; background:var(--surface); border-radius:22px; box-shadow:var(--shadow-sm); overflow-y:auto;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="padding:0 6px; font-size:12px; font-weight:600; color:var(--text-3);">Algorithm</span>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <sc-for list="{{ algoRows }}" as="r" hint-placeholder-count="6">
+              <button onClick="{{ r.pick }}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; cursor:pointer; padding:9px 10px; border-radius:11px; font-size:14px; font-weight:{{ r.weight }}; background:{{ r.bg }}; color:{{ r.fg }}; transition:background-color .15s ease;">
+                <span>{{ r.name }}</span>
+                <span style="font-family:var(--mono); font-size:11.5px; color:{{ r.sub }};">{{ r.avg }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="padding:0 6px; font-size:12px; font-weight:600; color:var(--text-3);">View</span>
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:2px; padding:3px; border-radius:12px; background:var(--fill);">
+            <sc-for list="{{ viewOpts }}" as="v" hint-placeholder-count="3">
+              <button onClick="{{ v.pick }}" style="border:0; cursor:pointer; padding:7px 4px; border-radius:9px; font-size:13px; font-weight:500; background:{{ v.bg }}; color:{{ v.fg }}; box-shadow:{{ v.shadow }}; transition:background-color .15s ease;">{{ v.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px;">
+            <span style="font-size:12px; font-weight:600; color:var(--text-3);">Data</span>
+            <button onClick="{{ shuffle }}" style="display:flex; align-items:center; gap:5px; border:0; background:none; cursor:pointer; padding:2px 0; font-size:13px; font-weight:500; color:var(--accent);">
+              <svg width="14" height="14" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><path d="M16 3h5v5"></path><path d="M4 20L21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>
+              Shuffle
+            </button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <sc-for list="{{ presetChips }}" as="p" hint-placeholder-count="4">
+              <button onClick="{{ p.pick }}" style="border:0; cursor:pointer; padding:8px 6px; border-radius:10px; font-size:13px; font-weight:500; background:{{ p.bg }}; color:{{ p.fg }}; transition:background-color .15s ease;">{{ p.name }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            <input value="{{ customText }}" onChange="{{ onCustomText }}" onKeyDown="{{ onCustomKey }}" placeholder="5, 2, 9, 1, 7" style="flex:1; min-width:0; height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--hair); background:var(--surface-2); color:var(--text); font-family:var(--mono); font-size:13px; outline:none;" style-focus="border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);"></input>
+            <button onClick="{{ applyCustom }}" style="height:36px; padding:0 12px; border:0; border-radius:10px; cursor:pointer; background:var(--fill-2); color:var(--text); font-size:13px; font-weight:600;">Use</button>
+          </div>
+          <sc-if value="{{ customError }}" hint-placeholder-val="{{ false }}">
+            <span style="padding:0 6px; font-size:12px; color:#D0342C;">{{ customError }}</span>
+          </sc-if>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px;">
+            <span style="font-size:12px; font-weight:600; color:var(--text-3);">Size</span>
+            <span style="font-family:var(--mono); font-size:13px; color:var(--text);">{{ sizeLabel }}</span>
+          </div>
+          <input type="range" min="5" max="200" value="{{ size }}" onChange="{{ onSize }}" style="width:100%; accent-color:var(--accent); margin:0 4px;"></input>
+          <sc-if value="{{ craneNote }}" hint-placeholder-val="{{ false }}">
+            <span style="padding:0 6px; font-size:12px; line-height:1.4; color:var(--text-3);">The crane stages up to 32 boxes.</span>
+          </sc-if>
+        </div>
+
+        <button onClick="{{ openShortcuts }}" style="margin-top:auto; display:flex; flex-wrap:wrap; align-items:center; gap:6px; border:0; background:var(--fill); cursor:pointer; padding:10px 12px; border-radius:12px; font-size:12px; color:var(--text-2); text-align:left;">
+          <kbd style="font-family:var(--mono); font-size:11px; padding:2px 6px; border-radius:5px; background:var(--surface); box-shadow:var(--shadow-sm); color:var(--text);">Space</kbd> play
+          <kbd style="font-family:var(--mono); font-size:11px; padding:2px 6px; border-radius:5px; background:var(--surface); box-shadow:var(--shadow-sm); color:var(--text);">← →</kbd> step
+          <kbd style="font-family:var(--mono); font-size:11px; padding:2px 6px; border-radius:5px; background:var(--surface); box-shadow:var(--shadow-sm); color:var(--text);">?</kbd> all
+        </button>
+      </aside>
+
+      <section style="flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; padding:4px 6px 0;">
+          <div style="min-width:0; display:flex; flex-direction:column; gap:6px;">
+            <span style="font-size:13px; font-weight:500; color:var(--text-3);">{{ algoName }} · {{ phase }}</span>
+            <span style="font-size:clamp(19px, 2vw, 26px); line-height:1.25; font-weight:650; letter-spacing:-0.02em; color:var(--text); min-height:1.25em;">{{ narration }}</span>
+          </div>
+          <button onClick="{{ togglePanel }}" title="{{ panelTitle }}" style="flex:none; display:flex; align-items:center; gap:6px; border:0; cursor:pointer; padding:8px 12px; border-radius:999px; background:{{ panelBtnBg }}; color:{{ panelBtnFg }}; font-size:13px; font-weight:500;">
+            <svg width="16" height="16" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M15 4v16"></path></svg>
+            Details
+          </button>
+        </div>
+
+        <div style="position:relative; flex:1; min-height:0; background:var(--surface); border-radius:26px; box-shadow:var(--shadow-sm); overflow:hidden;">
+          <div style="position:absolute; top:18px; left:22px; right:22px; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px;">
+            <sc-for list="{{ legend }}" as="l" hint-placeholder-count="4">
+              <span style="display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-2);"><span style="width:10px; height:10px; border-radius:3px; background:var(--s-{{ l.key }});"></span>{{ l.label }}</span>
+            </sc-for>
+            <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+              <span style="margin-left:auto; display:flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; background:var(--fill); font-size:12.5px; font-weight:600; color:var(--text); animation:vsRise .3s ease both;"><span style="width:8px; height:8px; border-radius:50%; background:var(--s-sorted);"></span>Sorted</span>
+            </sc-if>
+          </div>
+
+          <sc-if value="{{ show2d }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; top:64px; left:36px; right:36px; bottom:{{ barsBottom }}px;">
+              <div style="position:absolute; left:0; right:0; bottom:0; height:1px; background:var(--hair);"></div>
+              <sc-for list="{{ bars }}" as="b" hint-placeholder-count="16">
+                <div style="position:absolute; left:0; top:0; bottom:0; width:{{ barW }}; transform:translateX({{ b.tx }}); transition:transform {{ moveMs }}ms cubic-bezier(.45,0,.2,1);">
+                  <div style="position:absolute; bottom:0; left:{{ halfGap }}px; right:{{ halfGap }}px; height:{{ b.h }}%; background:var(--s-{{ b.st }}); border-radius:{{ radius }}; transition:height {{ hMs }}ms ease, background-color 120ms linear;"></div>
+                  <sc-if value="{{ showValues }}" hint-placeholder-val="{{ true }}">
+                    <span style="position:absolute; left:0; right:0; bottom:-24px; text-align:center; font-family:var(--mono); font-size:11.5px; color:var(--text-3);">{{ b.v }}</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showTree }}" hint-placeholder-val="{{ false }}">
+            <div ref="{{ treeRef }}" style="position:absolute; inset:58px 0 92px 0;"></div>
+          </sc-if>
+
+          <sc-if value="{{ showCrane }}" hint-placeholder-val="{{ true }}">
+            <div style="position:absolute; inset:44px 0 84px 0; display:grid; place-items:center; font-size:13px; color:var(--text-3);">{{ craneLoading }}</div>
+            <div ref="{{ craneRef }}" style="position:absolute; inset:44px 0 84px 0;"></div>
+          </sc-if>
+
+          <sc-if value="{{ craneTooMany }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; inset:0 0 84px 0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center;">
+              <span style="font-size:22px; font-weight:650; letter-spacing:-0.02em;">The crane is clearest with a small shelf</span>
+              <span style="max-width:420px; font-size:15px; line-height:1.45; color:var(--text-2);">You have {{ n }} values. Switch to Bars or Tree for the full array, or shrink to a demo-sized set.</span>
+              <button onClick="{{ shrink }}" style="border:0; cursor:pointer; padding:10px 20px; border-radius:999px; background:var(--accent); color:#fff; font-size:14px; font-weight:600;">Shrink to 16 boxes</button>
+            </div>
+          </sc-if>
+
+          <div style="position:absolute; left:50%; bottom:18px; transform:translateX(-50%); z-index:3; width:min(720px, calc(100% - 32px)); display:flex; align-items:center; gap:4px; padding:7px; background:var(--surface); border-radius:999px; box-shadow:var(--shadow-lg);">
+            <button onClick="{{ reset }}" title="Reset (R)" style="width:40px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:999px; background:none; color:var(--text-2); cursor:pointer;" style-hover="background:var(--fill); color:var(--text);">
+              <svg width="18" height="18" viewBox="0 0 24 24" style="fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v4h4"></path></svg>
+            </button>
+            <button onClick="{{ stepBack }}" title="Step back (←)" style="width:40px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:999px; background:none; color:var(--text-2); cursor:pointer; opacity:{{ backOpacity }};" style-hover="background:var(--fill); color:var(--text);">
+              <svg width="18" height="18" viewBox="0 0 24 24" style="fill:currentColor;"><path d="M19 5l-9 7 9 7z"></path><rect x="5.5" y="5" width="2.5" height="14" rx="1"></rect></svg>
+            </button>
+            <button onClick="{{ toggle }}" title="{{ playTitle }}" style="width:48px; height:48px; flex:none; display:grid; place-items:center; border:0; border-radius:999px; background:var(--accent); color:#fff; cursor:pointer; transition:transform .2s cubic-bezier(.3,1.4,.5,1), filter .2s ease;" style-hover="filter:brightness(1.07);" style-active="transform:scale(.94);">
+              <sc-if value="{{ playing }}" hint-placeholder-val="{{ false }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" style="fill:currentColor;"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+              </sc-if>
+              <sc-if value="{{ notPlaying }}" hint-placeholder-val="{{ true }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" style="fill:currentColor; margin-left:2px;"><path d="M6 4.5v15l13-7.5-13-7.5z"></path></svg>
+              </sc-if>
+            </button>
+            <button onClick="{{ stepForward }}" title="Step forward (→)" style="width:40px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:999px; background:none; color:var(--text-2); cursor:pointer; opacity:{{ fwdOpacity }};" style-hover="background:var(--fill); color:var(--text);">
+              <svg width="18" height="18" viewBox="0 0 24 24" style="fill:currentColor;"><path d="M5 5l9 7-9 7z"></path><rect x="16" y="5" width="2.5" height="14" rx="1"></rect></svg>
+            </button>
+            <div style="flex:1; min-width:80px; display:flex; align-items:center; gap:10px; padding:0 10px;">
+              <input type="range" min="0" max="{{ total }}" value="{{ index }}" onChange="{{ onScrub }}" title="Timeline" style="flex:1; min-width:0; accent-color:var(--accent); margin:0;"></input>
+              <span style="flex:none; font-family:var(--mono); font-size:12px; color:var(--text-2); white-space:nowrap;">{{ index }}<span style="color:var(--text-3);"> / {{ total }}</span></span>
+            </div>
+            <div style="flex:none; display:flex; align-items:center; gap:2px; padding:3px; border-radius:999px; background:var(--fill);">
+              <button onClick="{{ slower }}" title="Slower" style="width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:999px; background:none; color:var(--text-2); cursor:pointer; font-size:17px; line-height:1;" style-hover="background:var(--surface); color:var(--text);">−</button>
+              <span title="Playback speed" style="min-width:84px; text-align:center; font-family:var(--mono); font-size:12px; color:var(--text);">{{ speedLabel }}</span>
+              <button onClick="{{ faster }}" title="Faster" style="width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:999px; background:none; color:var(--text-2); cursor:pointer; font-size:17px; line-height:1;" style-hover="background:var(--surface); color:var(--text);">+</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ true }}">
+        <aside style="width:300px; flex:none; display:flex; flex-direction:column; gap:20px; padding:18px; background:var(--surface); border-radius:22px; box-shadow:var(--shadow-sm); overflow-y:auto; animation:vsRise .25s ease both;">
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <span style="font-size:12px; font-weight:600; color:var(--text-3);">Live statistics</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex; flex-direction:column; gap:4px; padding:12px; border-radius:14px; background:var(--surface-2);">
+                  <span style="font-size:12px; color:var(--text-3);">{{ s.label }}</span>
+                  <span style="font-family:var(--mono); font-size:19px; font-weight:500; color:var(--text);">{{ s.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-size:12px; font-weight:600; color:var(--text-3);">Complexity</span>
+              <span style="padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600; background:{{ stableBg }}; color:{{ stableFg }}; border:1px solid {{ stableBorder }};">{{ stableLabel }}</span>
+            </div>
+            <div style="display:flex; flex-direction:column; border-radius:14px; background:var(--surface-2); padding:4px 12px;">
+              <sc-for list="{{ complexity }}" as="c" hint-placeholder-count="4">
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:{{ c.border }};">
+                  <span style="font-size:13px; color:var(--text-2);">{{ c.label }}</span>
+                  <span style="font-family:var(--mono); font-size:13px; color:var(--text);">{{ c.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <span style="font-size:12px; font-weight:600; color:var(--text-3);">Pseudocode</span>
+            <div style="display:flex; flex-direction:column; gap:1px; padding:8px; border-radius:14px; background:var(--surface-2);">
+              <sc-for list="{{ pseudo }}" as="p" hint-placeholder-count="7">
+                <div style="display:flex; gap:10px; padding:3px 6px; border-radius:7px; background:{{ p.bg }}; transition:background-color .15s ease;">
+                  <span style="flex:none; width:14px; text-align:right; font-family:var(--mono); font-size:11px; line-height:1.7; color:{{ p.numFg }};">{{ p.num }}</span>
+                  <span style="font-family:var(--mono); font-size:11.5px; line-height:1.7; color:{{ p.fg }}; padding-left:{{ p.indent }}; white-space:pre-wrap;">{{ p.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <p style="margin:0; font-size:13.5px; line-height:1.55; color:var(--text-2); text-wrap:pretty;">{{ description }}</p>
+        </aside>
+      </sc-if>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ shortcutsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeShortcuts }}" style="position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:24px; background:rgba(10,12,16,0.28);">
+      <div onClick="{{ stop }}" style="width:min(380px, 100%); background:var(--surface); border-radius:24px; box-shadow:var(--shadow-lg); padding:22px; display:flex; flex-direction:column; gap:14px; animation:vsRise .25s ease both;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:18px; font-weight:650; letter-spacing:-0.01em;">Keyboard shortcuts</span>
+          <button onClick="{{ closeShortcuts }}" style="width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:999px; background:var(--fill); color:var(--text-2); cursor:pointer; font-size:16px;">×</button>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <sc-for list="{{ shortcuts }}" as="k" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:0.5px solid var(--hair);">
+              <span style="font-size:14px; color:var(--text-2);">{{ k.label }}</span>
+              <kbd style="font-family:var(--mono); font-size:12px; padding:3px 8px; border-radius:6px; background:var(--surface-2); box-shadow:var(--shadow-sm); color:var(--text);">{{ k.key }}</kbd>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12px; color:var(--text-3);">Shortcuts pause while you type in a field.</span>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;options&quot;:[&quot;#0A66F0&quot;,&quot;#2F5BD3&quot;,&quot;#0B7A99&quot;,&quot;#2A2C33&quot;],&quot;default&quot;:&quot;#0A66F0&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;visualizer&quot;,&quot;gallery&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;'home' | 'visualizer' | 'gallery'&quot;}}">
+const RATES = [0.4, 0.7, 1.1, 1.7, 2.5, 3.5, 6, 12, 24, 48];
+const PRESETS = [{ key: 'random', name: 'Random' }, { key: 'nearly-sorted', name: 'Nearly sorted' }, { key: 'reversed', name: 'Reversed' }, { key: 'few-unique', name: 'Few unique' }];
+const STATE_LABEL = { default: 'Unsorted', comparing: 'Comparing', swapping: 'Swapping', overwriting: 'Writing', pivot: 'Pivot', sorted: 'Sorted' };
+const CRANE_COLORS = {
+  light: { default: '#7A8294', comparing: '#EFA52B', swapping: '#E5603F', pivot: '#8C5BE6', overwriting: '#D4479A', sorted: '#2FAE77' },
+  dark: { default: '#4A5468', comparing: '#F2B13A', swapping: '#FF7452', pivot: '#A57BFF', overwriting: '#EE5FAE', sorted: '#3DC487' },
+};
+const fmt = (n) => Number(n).toLocaleString('en-US');
+const fmtRate = (r) => (r < 10 ? r.toFixed(1) : String(Math.round(r))) + ' steps/s';
+
+class Component extends DCLogic {
+  state = {
+    ready: !!window.VSEngine,
+    screen: this.props.startScreen ?? 'home',
+    dark: (this.props.theme ?? 'light') === 'dark',
+    algoKey: 'bubble', preset: 'random', size: 16, speed: 2,
+    view: 'crane', customText: '', customError: '', custom: null,
+    status: 'idle', frame: null, panelOpen: window.innerWidth >= 1200, shortcutsOpen: false,
+    heroAlgo: 4, heroIdx: 0, heroHold: 0, galIdx: [0, 0, 0, 0, 0, 0], galHold: [0, 0, 0, 0, 0, 0], tick: 0,
+    craneReady: false,
+  };
+  craneRef = React.createRef();
+  treeRef = React.createRef();
+
+  componentDidMount() {
+    this.applyTheme();
+    const boot = () => {
+      if (!window.VSEngine) { this.bootT = setTimeout(boot, 30); return; }
+      const E = window.VSEngine;
+      this.heroFrames = E.ALGORITHMS.map((a, i) => E.previewFrames(a, E.previewArray(32, i + 7)));
+      this.galFrames = E.ALGORITHMS.map((a, i) => E.previewFrames(a, E.previewArray(14, i + 1)));
+      this.rebuild(E.generateArray(this.state.size, this.state.preset), { ready: true });
+    };
+    boot();
+    this.iv = setInterval(() => this.tickPreviews(), 75);
+    this.onKey = (e) => this.handleKey(e);
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() {
+    clearTimeout(this.bootT); clearInterval(this.iv); cancelAnimationFrame(this.raf);
+    window.removeEventListener('keydown', this.onKey);
+    this.disposeCrane();
+    this.disposeTree();
+  }
+  componentDidUpdate(prev) {
+    if (prev.theme !== this.props.theme) this.setState({ dark: this.props.theme === 'dark' });
+    if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
+    this.applyTheme();
+    this.syncCrane();
+    this.syncTree();
+  }
+  disposeTree() { if (this.tree) { this.tree.dispose(); this.tree = null; } this.treeHost = null; }
+  syncTree() {
+    const host = this.treeRef.current;
+    const want = this.state.ready && this.state.screen === 'visualizer' && this.state.view === 'tree' && this.player;
+    if (!want || !host) { if (this.tree) this.disposeTree(); return; }
+    if (this.treeHost !== host) {
+      this.disposeTree();
+      this.treeHost = host;
+      const url = new URL('./tree.js', document.baseURI).href;
+      (this.treeMod ? Promise.resolve(this.treeMod) : import(url)).then((mod) => {
+        this.treeMod = mod;
+        if (this.treeHost !== host || this.tree) return;
+        this.tree = mod.createTree(host, window.VSEngine);
+        this.pushTree();
+      }).catch((err) => console.error('Tree failed to load', err));
+      return;
+    }
+    this.pushTree();
+  }
+  pushTree() {
+    if (!this.tree || !this.player) return;
+    this.tree.update({ steps: this.steps, frame: this.state.frame, kind: window.VSEngine.structureOf(this.state.algoKey), snap: this.rate >= 20 });
+  }
+  applyTheme() {
+    const root = document.documentElement;
+    root.dataset.theme = this.state.dark ? 'dark' : 'light';
+    root.style.setProperty('--accent', this.props.accent ?? '#0A66F0');
+  }
+
+  // ---------- run management ----------
+  get algo() { return window.VSEngine.ALGORITHMS.find((a) => a.key === this.state.algoKey); }
+  get rate() { return RATES[this.state.speed]; }
+  rebuild(array, extra = {}, algoKey = this.state.algoKey) {
+    const E = window.VSEngine;
+    cancelAnimationFrame(this.raf);
+    const algo = E.ALGORITHMS.find((a) => a.key === algoKey);
+    this.array = array;
+    this.steps = E.buildSteps(algo.gen, array);
+    this.player = new E.Player(array, this.steps);
+    this.shelf = null;
+    this.setState({ ...extra, algoKey, frame: this.player.frame(), status: 'idle' });
+  }
+  regenerate(patch) {
+    const s = { ...this.state, ...patch };
+    this.rebuild(window.VSEngine.generateArray(s.size, s.preset), { ...patch, custom: null, customError: '' });
+  }
+  play() {
+    if (!this.player) return;
+    if (this.player.atEnd) { this.player.reset(); }
+    this.setState({ status: 'playing', frame: this.player.frame() });
+    let last = performance.now();
+    let acc = 1000 / this.rate;
+    const loop = (now) => {
+      if (this.state.status !== 'playing') return;
+      acc += now - last; last = now;
+      const interval = 1000 / this.rate;
+      let moved = false;
+      while (acc >= interval) {
+        acc -= interval;
+        if (!this.player.forward()) break;
+        moved = true;
+        if (this.player.atEnd) {
+          this.player.markAllSorted();
+          this.setState({ status: 'done', frame: this.player.frame() });
+          return;
+        }
+      }
+      if (moved) this.setState({ frame: this.player.frame() });
+      this.raf = requestAnimationFrame(loop);
+    };
+    cancelAnimationFrame(this.raf);
+    this.raf = requestAnimationFrame(loop);
+  }
+  pause() { cancelAnimationFrame(this.raf); this.setState({ status: this.player && this.player.atEnd ? 'done' : 'paused' }); }
+  toggle() { if (this.state.status === 'playing') this.pause(); else this.play(); }
+  seek(i) {
+    cancelAnimationFrame(this.raf);
+    this.player.seekTo(i);
+    const end = this.player.atEnd && this.player.total > 0;
+    if (end) this.player.markAllSorted();
+    this.setState({ frame: this.player.frame(), status: end ? 'done' : i === 0 ? 'idle' : 'paused' });
+  }
+  stepForward() { if (this.player && !this.player.atEnd) this.seek(this.player.idx + 1); }
+  stepBack() { if (this.player && this.player.idx > 0) this.seek(this.player.idx - 1); }
+  reset() { if (this.player) this.seek(0); }
+
+  handleKey(e) {
+    if (this.state.screen !== 'visualizer') return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key === 'Escape') { this.setState({ shortcutsOpen: false }); return; }
+    if (e.key === '?') { this.setState({ shortcutsOpen: !this.state.shortcutsOpen }); return; }
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    if (e.key === ' ') { e.preventDefault(); this.toggle(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); this.stepForward(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); this.stepBack(); }
+    else if (e.key === 'r' || e.key === 'R') this.reset();
+    else if (e.key === ']' || e.key === '+' || e.key === '=') this.setState({ speed: Math.min(RATES.length - 1, this.state.speed + 1) });
+    else if (e.key === '[' || e.key === '-') this.setState({ speed: Math.max(0, this.state.speed - 1) });
+  }
+
+  // ---------- previews ----------
+  tickPreviews() {
+    if (!this.heroFrames) return;
+    const s = this.state;
+    if (s.screen === 'home') {
+      const frames = this.heroFrames[s.heroAlgo];
+      if (s.heroIdx < frames.length - 1) this.setState({ heroIdx: s.heroIdx + 1 });
+      else if (s.heroHold < 22) this.setState({ heroHold: s.heroHold + 1 });
+      else this.setState({ heroAlgo: (s.heroAlgo + 1) % 6, heroIdx: 0, heroHold: 0 });
+    } else if (s.screen === 'gallery') {
+      if ((s.tick + 1) % 2) { this.setState({ tick: s.tick + 1 }); return; }
+      const galIdx = s.galIdx.slice(), galHold = s.galHold.slice();
+      this.galFrames.forEach((f, i) => {
+        if (galIdx[i] < f.length - 1) galIdx[i]++;
+        else if (galHold[i] < 11) galHold[i]++;
+        else { galIdx[i] = 0; galHold[i] = 0; }
+      });
+      this.setState({ galIdx, galHold, tick: s.tick + 1 });
+    }
+  }
+
+  // ---------- crane ----------
+  wantCrane() { return this.state.ready && this.state.screen === 'visualizer' && this.state.view === 'crane' && this.array && this.array.length <= 32; }
+  disposeCrane() { if (this.crane) { this.crane.dispose(); this.crane = null; } this.craneHost = null; }
+  syncCrane() {
+    const host = this.craneRef.current;
+    if (!this.wantCrane() || !host) { if (this.crane) this.disposeCrane(); return; }
+    if (this.craneHost !== host) {
+      this.disposeCrane();
+      this.craneHost = host;
+      const url = new URL('./crane.js', document.baseURI).href;
+      (this.craneMod ? Promise.resolve(this.craneMod) : import(url)).then((mod) => {
+        this.craneMod = mod;
+        if (this.craneHost !== host || this.crane) return;
+        this.crane = mod.createCrane(host);
+        if (!this.state.craneReady) this.setState({ craneReady: true });
+        this.pushCrane();
+      }).catch((err) => console.error('Crane failed to load', err));
+      return;
+    }
+    this.pushCrane();
+  }
+  pushCrane() {
+    if (!this.crane || !this.player) return;
+    const E = window.VSEngine;
+    if (!this.shelf) this.shelf = E.buildShelf(this.array, this.steps);
+    const frame = this.state.frame;
+    const index = Math.min(frame.index, this.steps.length);
+    const step = index > 0 ? this.steps[index - 1] : undefined;
+    const posOf = this.shelf.posOf[index];
+    const bySlot = [];
+    frame.posOf.forEach((slot, id) => { bySlot[slot] = frame.state[id]; });
+    if (step && step.type === 'compare') {
+      const [a, b] = E.comparedSlots(step);
+      if (a !== step.i) { if (step.i !== b && bySlot[step.i] === 'comparing') bySlot[step.i] = 'default'; bySlot[a] = 'comparing'; }
+    }
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.crane.update({
+      run: this.shelf, index, posOf, values: this.shelf.values[index],
+      state: posOf.map((slot) => bySlot[slot] || 'default'), step,
+      snap: this.rate >= 20, reduced, done: this.state.status === 'done',
+      stepMs: 1000 / this.rate, playing: this.state.status === 'playing',
+      colors: CRANE_COLORS[this.state.dark ? 'dark' : 'light'], comparedSlots: E.comparedSlots,
+    });
+  }
+
+  // ---------- narration ----------
+  narrate(frame) {
+    if (frame.total === 0) return 'This array is already trivial — add more numbers.';
+    if (this.state.status === 'done') return `Sorted in ${fmt(frame.counters.comparisons)} comparisons and ${fmt(this.algo.writesModel === 'swap' ? frame.counters.swaps : frame.counters.writes)} ${this.algo.writesModel === 'swap' ? 'swaps' : 'writes'}.`;
+    if (frame.index === 0) return 'Press play — or step with the arrow keys — to begin.';
+    const step = this.steps[frame.index - 1];
+    if (!step) return '';
+    const valueAt = (p) => { for (let id = 0; id < frame.posOf.length; id++) if (frame.posOf[id] === p) return frame.heights[id]; return 0; };
+    switch (step.type) {
+      case 'compare': {
+        const v = step.ctx && step.ctx.values;
+        return `Compared a[${step.i}] = ${v ? v.a : valueAt(step.i)} with a[${step.j}] = ${v ? v.b : valueAt(step.j)}`;
+      }
+      case 'swap': return `Swapped positions ${step.i} ↔ ${step.j}`;
+      case 'overwrite': return `Wrote ${step.value} into a[${step.index}]`;
+      case 'markPivot': return `Chose pivot a[${step.index}] = ${valueAt(step.index)}`;
+      case 'markSorted': return step.indices.length > 1 ? 'Everything is locked in final position' : `a[${step.indices[0]}] locked in its final position`;
+      case 'divide': return step.lo === step.hi ? `Divided down to a single element a[${step.lo}]` : `Divided into the range a[${step.lo}…${step.hi}]`;
+      case 'combine': return `Merging the range a[${step.lo}…${step.hi}] back together`;
+    }
+    return '';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const go = (screen) => () => { if (screen !== 'visualizer' && s.status === 'playing') this.pause(); this.setState({ screen, shortcutsOpen: false }); window.scrollTo(0, 0); };
+    const navItems = [['home', 'Home'], ['gallery', 'Gallery'], ['visualizer', 'Visualizer']].map(([k, label]) => {
+      const on = s.screen === k;
+      return { label, go: go(k), bg: on ? 'var(--surface)' : 'transparent', fg: on ? 'var(--text)' : 'var(--text-2)', weight: on ? 600 : 500, shadow: on ? 'var(--shadow-sm)' : 'none' };
+    });
+    const base = {
+      navItems, dark: s.dark, light: !s.dark,
+      isHome: s.screen === 'home', isGallery: s.screen === 'gallery', isViz: s.screen === 'visualizer',
+      goHome: go('home'), goVisualizer: go('visualizer'),
+      toggleTheme: () => this.setState({ dark: !s.dark }),
+      shortcutsOpen: s.shortcutsOpen,
+      openShortcuts: () => this.setState({ shortcutsOpen: true }),
+      closeShortcuts: () => this.setState({ shortcutsOpen: false }),
+      stop: (e) => e.stopPropagation(),
+      shortcuts: [
+        { label: 'Play / pause', key: 'Space' }, { label: 'Step forward', key: '→' }, { label: 'Step back', key: '←' },
+        { label: 'Reset', key: 'R' }, { label: 'Faster / slower', key: '] / [' }, { label: 'Show shortcuts', key: '?' },
+      ],
+    };
+    if (!s.ready || !s.frame) return { ...base, hero: { name: '', avg: '', bars: [], legend: [], gap: 6, radius: '0' }, heroTabs: [], galleryCards: [] };
+    const E = window.VSEngine;
+    const algo = this.algo;
+    const legendOf = (a) => a.states.map((k) => ({ key: k, label: STATE_LABEL[k] }));
+
+    // Home hero
+    const hf = this.heroFrames[s.heroAlgo][Math.min(s.heroIdx, this.heroFrames[s.heroAlgo].length - 1)];
+    const ha = E.ALGORITHMS[s.heroAlgo];
+    const dotsMode = false;
+    const pv = (h, st, dotPx) => dotsMode
+      ? { st, bottom: `calc(${h}% - ${dotPx}px)`, hh: dotPx + 'px', w: dotPx + 'px' }
+      : { st, bottom: '0px', hh: h + '%', w: '100%' };
+    const hero = {
+      name: ha.name, avg: ha.complexity.average, legend: legendOf(ha), gap: 6,
+      radius: dotsMode ? '999px' : '7px 7px 3px 3px',
+      bars: hf.h.map((h, i) => pv(h, hf.st[i], 16)),
+    };
+    const heroTabs = E.ALGORITHMS.map((a, i) => ({
+      short: a.short, name: a.name, bg: i === s.heroAlgo ? 'var(--text)' : 'var(--fill)', fg: i === s.heroAlgo ? 'var(--surface)' : 'var(--text-2)',
+      go: () => this.setState({ heroAlgo: i, heroIdx: 0, heroHold: 0 }),
+    }));
+
+    const stab = (a) => a.stable
+      ? { stableLabel: '✓ Stable', stableBg: 'var(--text)', stableFg: 'var(--surface)', stableBorder: 'var(--text)' }
+      : { stableLabel: 'Unstable', stableBg: 'transparent', stableFg: 'var(--text-2)', stableBorder: 'var(--hair)' };
+
+    const galleryCards = E.ALGORITHMS.map((a, i) => {
+      const f = this.galFrames[i][Math.min(s.galIdx[i], this.galFrames[i].length - 1)];
+      return {
+        name: a.name, avg: a.complexity.average, best: a.complexity.best, worst: a.complexity.worst, space: a.complexity.space, blurb: a.blurb,
+        model: a.writesModel === 'swap' ? 'Swap-based' : 'Write-based', ...stab(a),
+        radius: dotsMode ? '999px' : '4px 4px 2px 2px',
+        bars: f.h.map((h, k) => pv(h, f.st[k], 10)),
+        open: () => { this.rebuild(this.state.custom || E.generateArray(this.state.size, this.state.preset), { screen: 'visualizer' }, a.key); window.scrollTo(0, 0); },
+      };
+    });
+
+    // Visualizer
+    const frame = s.frame;
+    const n = frame.heights.length;
+    let max = 1; for (const v of frame.heights) if (v > max) max = v;
+    const is2d = s.view === 'bars';
+    const craneTooMany = s.view === 'crane' && n > 32;
+    const stepMs = 1000 / this.rate;
+    const snap = this.rate >= 20;
+    const showValues = n <= 24;
+    const bars = frame.heights.map((h, id) => ({ tx: frame.posOf[id] * 100 + '%', h: Math.max(1.5, (h / max) * 100).toFixed(2), st: frame.state[id], v: Math.round(h) }));
+    const gap = n <= 24 ? 10 : n <= 60 ? 5 : n <= 120 ? 2 : 1;
+    const idx = frame.index, total = frame.total;
+    const step = idx > 0 ? this.steps[idx - 1] : null;
+    const phase = s.status === 'done' ? 'Done' : step && step.ctx && step.ctx.phase ? step.ctx.phase : 'Ready';
+    const c = frame.counters;
+    const pseudoLines = E.PSEUDOCODE[algo.key];
+    const activeLine = step ? step.line : -1;
+
+    return {
+      ...base,
+      hero, heroTabs, galleryCards,
+      algoRows: E.ALGORITHMS.map((a) => {
+        const on = a.key === s.algoKey;
+        return { name: a.name, avg: a.complexity.average, bg: on ? 'var(--accent-soft)' : 'transparent', fg: on ? 'var(--accent)' : 'var(--text)', sub: on ? 'var(--accent)' : 'var(--text-3)', weight: on ? 600 : 500,
+          pick: () => this.rebuild(this.array, {}, a.key) };
+      }),
+      viewOpts: [['bars', 'Bars'], ['tree', 'Tree'], ['crane', '3D Crane']].map(([k, label]) => {
+        const on = s.view === k;
+        return { label, bg: on ? 'var(--surface)' : 'transparent', fg: on ? 'var(--text)' : 'var(--text-2)', shadow: on ? 'var(--shadow-sm)' : 'none', pick: () => this.setState({ view: k }) };
+      }),
+      presetChips: PRESETS.map((p) => {
+        const on = !s.custom && s.preset === p.key;
+        return { name: p.name, bg: on ? 'var(--accent-soft)' : 'var(--fill)', fg: on ? 'var(--accent)' : 'var(--text-2)', pick: () => this.regenerate({ preset: p.key }) };
+      }),
+      shuffle: () => this.regenerate({}),
+      customText: s.customText, customError: s.customError,
+      onCustomText: (e) => this.setState({ customText: e.target.value, customError: '' }),
+      onCustomKey: (e) => { if (e.key === 'Enter') this.applyCustomNow(); },
+      applyCustom: () => this.applyCustomNow(),
+      size: s.custom ? n : s.size, sizeLabel: s.custom ? `${n} custom` : `${s.size} values`,
+      onSize: (e) => this.regenerate({ size: Number(e.target.value) }),
+      craneNote: s.view === 'crane' && !craneTooMany,
+      algoName: algo.name, phase, narration: this.narrate(frame),
+      panelOpen: s.panelOpen, togglePanel: () => this.setState({ panelOpen: !s.panelOpen }),
+      panelTitle: s.panelOpen ? 'Hide details' : 'Show details',
+      panelBtnBg: s.panelOpen ? 'var(--fill-2)' : 'var(--fill)', panelBtnFg: s.panelOpen ? 'var(--text)' : 'var(--text-2)',
+      legend: legendOf(algo), isDone: s.status === 'done',
+      show2d: is2d, showTree: s.view === 'tree', treeRef: this.treeRef,
+      bars, barW: 100 / Math.max(1, n) + '%', halfGap: gap / 2, radius: n <= 60 ? '6px 6px 2px 2px' : '1px',
+      showValues, barsBottom: showValues ? 116 : 96,
+      moveMs: snap ? 0 : Math.round(Math.min(380, stepMs * 0.8)), hMs: snap ? 0 : Math.round(Math.min(260, stepMs * 0.8)),
+      showCrane: s.view === 'crane' && !craneTooMany, craneRef: this.craneRef,
+      craneLoading: s.craneReady ? '' : 'Loading the crane…',
+      craneTooMany, n, shrink: () => this.regenerate({ size: 16 }),
+      reset: () => this.reset(), stepBack: () => this.stepBack(), stepForward: () => this.stepForward(), toggle: () => this.toggle(),
+      playing: s.status === 'playing', notPlaying: s.status !== 'playing',
+      playTitle: s.status === 'playing' ? 'Pause (Space)' : s.status === 'done' ? 'Replay (Space)' : 'Play (Space)',
+      backOpacity: idx === 0 ? 0.35 : 1, fwdOpacity: idx >= total ? 0.35 : 1,
+      index: idx, total, onScrub: (e) => this.seek(Number(e.target.value)),
+      speedLabel: fmtRate(this.rate),
+      slower: () => this.setState({ speed: Math.max(0, s.speed - 1) }),
+      faster: () => this.setState({ speed: Math.min(RATES.length - 1, s.speed + 1) }),
+      stats: [
+        { label: 'Comparisons', value: fmt(c.comparisons) }, { label: 'Swaps', value: fmt(c.swaps) },
+        { label: 'Array writes', value: fmt(c.writes) }, { label: 'Array accesses', value: fmt(c.accesses) },
+      ],
+      ...stab(algo),
+      complexity: [['Best', algo.complexity.best], ['Average', algo.complexity.average], ['Worst', algo.complexity.worst], ['Space', algo.complexity.space]]
+        .map(([label, value], i) => ({ label, value, border: i < 3 ? '0.5px solid var(--hair)' : '0' })),
+      pseudo: pseudoLines.map((ln, i) => {
+        const on = i === activeLine;
+        return { num: i + 1, text: ln.text, indent: ln.indent * 14 + 'px', bg: on ? 'var(--accent-soft)' : 'transparent', fg: on ? 'var(--text)' : 'var(--text-2)', numFg: on ? 'var(--accent)' : 'var(--text-3)' };
+      }),
+      description: algo.description,
+    };
+  }
+
+  applyCustomNow() {
+    const r = window.VSEngine.parseArray(this.state.customText);
+    if (r.error) { this.setState({ customError: r.error }); return; }
+    this.rebuild(r.values, { custom: r.values, customError: '' });
+  }
+}
+</script>
+</body>
+</html>
