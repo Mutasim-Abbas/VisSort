@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { Layout } from './app/Layout';
 
 // Code-split every page so the heavy Three.js hero only loads on Home and each
@@ -21,6 +21,8 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/visualize" element={<Visualizer />} />
+          {/* Retired pages (/compare, /learn) and typos land on Home. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </HashRouter>
