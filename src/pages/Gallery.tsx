@@ -4,6 +4,7 @@ import { ALGORITHMS, type AlgorithmMeta } from '../engine/registry';
 import { previewArray, previewFrames } from '../engine/preview';
 import { useLoopingIndex } from '../hooks/useLoopingIndex';
 import { PreviewBars } from '../components/PreviewBars';
+import { StableBadge } from '../components/StableBadge';
 
 /** The card's own algorithm genuinely sorting 14 bars, on loop. */
 function MiniSort({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
@@ -29,6 +30,27 @@ function AlgorithmCard({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
           <span className="font-mono text-sm">{algo.complexity.average}</span>
         </div>
         <p className="text-pretty text-[15px] leading-[1.45] text-secondary">{algo.blurb}</p>
+      </div>
+      <dl className="mx-1.5 grid grid-cols-3 gap-2 border-t-[0.5px] border-hair pt-3.5">
+        {(
+          [
+            ['Best', algo.complexity.best],
+            ['Worst', algo.complexity.worst],
+            ['Space', algo.complexity.space],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-[3px]">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className="font-mono text-[13px]">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mx-1.5 flex items-center gap-2">
+        <StableBadge stable={algo.stable} className="px-2.5 py-1 text-xs" />
+        <span className="rounded-full bg-fill px-2.5 py-1 text-xs font-medium text-secondary">
+          {algo.writesModel === 'swap' ? 'Swap-based' : 'Write-based'}
+        </span>
+        <span className="ml-auto text-sm font-medium text-accent">Visualize →</span>
       </div>
     </Link>
   );
