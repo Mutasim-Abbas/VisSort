@@ -7,7 +7,6 @@ import { Layout } from './app/Layout';
 const Home = lazy(() => import('./pages/Home'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 const Visualizer = lazy(() => import('./pages/Visualizer'));
-const Compare = lazy(() => import('./pages/Compare'));
 const Learn = lazy(() => import('./pages/Learn'));
 
 /**
@@ -23,7 +22,6 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/visualize" element={<Visualizer />} />
-          <Route path="/compare" element={<Compare />} />
           <Route path="/learn" element={<Learn />} />
         </Route>
       </Routes>
