@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "echo 'site/ is served as-is'",
+  "outputDirectory": "site"
+}
