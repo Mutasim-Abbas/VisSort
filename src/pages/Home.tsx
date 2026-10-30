@@ -78,6 +78,21 @@ function SortDemo() {
   );
 }
 
+const FEATURES = [
+  {
+    title: 'Your numbers',
+    body: 'Type any list, or start from random, reversed, nearly-sorted or few-unique data. Up to 200 values.',
+  },
+  {
+    title: 'Two ways to watch',
+    body: 'Flat bars for the whole array, or a gantry crane that lifts each box and sets it down in its new slot.',
+  },
+  {
+    title: 'Honest counts',
+    body: 'Every comparison and write is counted from the real steps, so scrubbing backwards rewinds the statistics with you.',
+  },
+];
+
 export default function Home() {
   return (
     <div className="flex flex-col">
@@ -103,6 +118,15 @@ export default function Home() {
 
       <section className="mx-auto mt-16 w-full max-w-[1120px] px-4 sm:px-6">
         <SortDemo />
+      </section>
+
+      <section className="mx-auto grid w-full max-w-[1120px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-10 px-6 pb-24 pt-[88px]">
+        {FEATURES.map((f) => (
+          <div key={f.title} className="flex flex-col gap-2.5">
+            <h3 className="text-[21px] font-[650] tracking-[-0.015em]">{f.title}</h3>
+            <p className="text-pretty text-base leading-normal text-secondary">{f.body}</p>
+          </div>
+        ))}
       </section>
     </div>
   );
