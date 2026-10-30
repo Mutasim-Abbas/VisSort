@@ -2,8 +2,8 @@ import { lazy } from 'react';
 import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { Layout } from './app/Layout';
 
-// Code-split every page so the heavy Three.js hero only loads on Home and each
-// route ships its own chunk.
+// Code-split every page so each route ships its own chunk; Three.js loads
+// only when the Visualizer's 3D Crane view is opened.
 const Home = lazy(() => import('./pages/Home'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 const Visualizer = lazy(() => import('./pages/Visualizer'));
