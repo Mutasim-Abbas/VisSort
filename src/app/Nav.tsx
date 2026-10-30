@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
+import { useTheme } from '../hooks/useTheme';
+import { MoonIcon, SunIcon } from '../components/icons';
 
-const LINKS: { to: string; label: string; end?: boolean }[] = [
+export const NAV_LINKS: { to: string; label: string; end?: boolean }[] = [
   { to: '/', label: 'Home', end: true },
   { to: '/gallery', label: 'Gallery' },
   { to: '/visualize', label: 'Visualizer' },
@@ -9,127 +10,72 @@ const LINKS: { to: string; label: string; end?: boolean }[] = [
   { to: '/learn', label: 'Learn' },
 ];
 
+/** Three rising bars — the logo mark, drawn in the accent. */
+export function LogoMark() {
+  return (
+    <span aria-hidden="true" className="flex h-[18px] w-5 items-end gap-0.5">
+      <span className="h-[45%] flex-1 rounded-[2px] bg-accent opacity-45" />
+      <span className="h-full flex-1 rounded-[2px] bg-accent" />
+      <span className="h-[70%] flex-1 rounded-[2px] bg-accent opacity-70" />
+    </span>
+  );
+}
+
+export function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={label}
+      title={label}
+      className="grid h-9 w-9 place-items-center rounded-full bg-fill text-secondary transition-colors duration-fast hover:bg-fill-2 hover:text-primary"
+    >
+      {theme === 'dark' ? <SunIcon width={18} height={18} /> : <MoonIcon width={18} height={18} />}
+    </button>
+  );
+}
+
 /**
- * Floating liquid-glass navbar. Desktop shows a centred glass pill of links.
- * Mobile uses a tap-to-open menu (a horizontal scroll strip is fiddly on real
- * phones), so every link is always one tap away. Dark-only, no theme switch.
- *
- * The bar is fixed, so the page scrolls underneath it and its surfaces are
- * backed (`.liquid-glass-solid`) rather than left at the 1%-white glass the
- * rest of the site uses over static backdrops — otherwise whatever is behind
- * reads straight through the controls.
+ * Sticky header: wordmark left, a segmented control of pages in the middle,
+ * the theme toggle right. The 1fr/auto/1fr grid keeps the segments optically
+ * centred whatever the two sides hold.
  */
 export function Nav() {
-  const [open, setOpen] = useState(false);
-  const { pathname } = useLocation();
-
-  // Close the menu on navigation and on Escape.
-  useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
   return (
-    <header className="fixed inset-x-0 top-4 z-50 px-4 lg:px-8">
-      <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-3">
-        <Link
-          to="/"
-          aria-label="VisSort home"
-          className="liquid-glass liquid-glass-solid grid h-12 w-12 shrink-0 place-items-center rounded-full font-display text-2xl italic leading-none text-primary"
-        >
-          V
-        </Link>
+    <header className="sticky top-0 z-40 grid h-[60px] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b-[0.5px] border-hair bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] px-5 backdrop-blur-md">
+      <Link
+        to="/"
+        aria-label="VisSort home"
+        className="flex items-center gap-2.5 justify-self-start rounded-lg px-1 py-1.5 text-primary"
+      >
+        <LogoMark />
+        <span className="text-[17px] font-[650] tracking-[-0.01em]">VisSort</span>
+      </Link>
 
-        {/* Desktop nav */}
-        <nav
-          aria-label="Primary"
-          className="liquid-glass liquid-glass-solid hidden items-center rounded-full p-1.5 md:flex"
-        >
-          {LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) =>
-                `rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-fast ${
-                  isActive ? 'bg-accent text-on-accent' : 'text-primary/90 hover:text-primary'
-                }`
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-          <Link
-            to="/visualize"
-            className="ml-1.5 whitespace-nowrap rounded-full bg-lime px-4 py-2 text-sm font-semibold text-on-lime transition-transform duration-fast active:scale-95"
+      <nav aria-label="Primary" className="flex gap-0.5 rounded-full bg-fill p-[3px]">
+        {NAV_LINKS.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.end}
+            className={({ isActive }) =>
+              `rounded-full px-4 py-[7px] text-sm transition-colors duration-base ${
+                isActive
+                  ? 'bg-surface font-semibold text-primary shadow-sm'
+                  : 'font-medium text-secondary hover:text-primary'
+              }`
+            }
           >
-            Start sorting
-          </Link>
-        </nav>
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
 
-        {/* Mobile menu button */}
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-label={open ? 'Close menu' : 'Open menu'}
-          aria-expanded={open}
-          className="liquid-glass liquid-glass-solid grid h-12 w-12 shrink-0 place-items-center rounded-full text-primary md:hidden"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            {open ? (
-              <path d="M6 6l12 12M18 6L6 18" />
-            ) : (
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            )}
-          </svg>
-        </button>
-
-        {/* Desktop spacer keeps the pill optically centred. */}
-        <div className="hidden h-12 w-12 shrink-0 md:block" aria-hidden="true" />
+      <div className="flex items-center gap-2 justify-self-end">
+        <ThemeToggle />
       </div>
-
-      {/* Mobile dropdown: full list, each row a real 48px touch target. */}
-      {open && (
-        <nav
-          aria-label="Primary mobile"
-          className="liquid-glass liquid-glass-solid rise-in mt-2 flex flex-col gap-1 rounded-[1.5rem] p-2 md:hidden"
-        >
-          {LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                `flex min-h-[48px] items-center rounded-2xl px-4 text-base font-medium transition-colors duration-fast ${
-                  isActive ? 'bg-accent text-on-accent' : 'text-primary/90 active:bg-accent-soft'
-                }`
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-          <Link
-            to="/visualize"
-            onClick={() => setOpen(false)}
-            className="mt-1 flex min-h-[48px] items-center justify-center rounded-2xl bg-lime px-4 text-base font-semibold text-on-lime"
-          >
-            Start sorting
-          </Link>
-        </nav>
-      )}
     </header>
   );
 }
