@@ -43,7 +43,7 @@ function ThemeToggle() {
  */
 export function Nav() {
   return (
-    <header className="sticky top-0 z-40 grid h-[60px] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b-[0.5px] border-hair bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] px-4 backdrop-blur-md sm:gap-4 sm:px-5">
+    <header className="sticky top-0 z-40 grid h-[60px] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-1.5 border-b-[0.5px] border-hair bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] px-3 backdrop-blur-md sm:gap-4 sm:px-5">
       <Link
         to="/"
         aria-label="VisSort home"
@@ -60,7 +60,7 @@ export function Nav() {
             to={link.to}
             end={link.end}
             className={({ isActive }) =>
-              `rounded-full px-3 py-[7px] text-sm transition-colors duration-base sm:px-4 ${
+              `rounded-full px-2.5 py-[7px] text-[13px] transition-colors duration-base sm:px-4 sm:text-sm ${
                 isActive
                   ? 'bg-surface font-semibold text-primary shadow-sm'
                   : 'font-medium text-secondary hover:text-primary'
