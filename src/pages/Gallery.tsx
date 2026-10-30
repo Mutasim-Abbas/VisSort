@@ -1,139 +1,72 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ALGORITHMS, type AlgorithmMeta } from '../engine/registry';
-import { Player, buildSteps, type Frame } from '../engine/player';
+import { previewArray, previewFrames } from '../engine/preview';
+import { useLoopingIndex } from '../hooks/useLoopingIndex';
+import { PreviewBars } from '../components/PreviewBars';
+import { StableBadge } from '../components/StableBadge';
 
-const PREVIEW_N = 14;
-const PREVIEW_STEP_MS = 140;
-const PREVIEW_PAUSE_MS = 1600;
-
-const STATE_BG: Record<string, string> = {
-  default: 'var(--color-bar-default)',
-  comparing: 'var(--color-bar-comparing)',
-  swapping: 'var(--color-bar-swapping)',
-  overwriting: 'var(--color-bar-overwriting)',
-  pivot: 'var(--color-bar-pivot)',
-  sorted: 'var(--color-bar-sorted)',
-};
-
-/** Deterministic shuffled heights so every card looks distinct but stable. */
-function previewArray(seed: number): number[] {
-  const arr = Array.from(
-    { length: PREVIEW_N },
-    (_, i) => 12 + Math.round((88 * i) / (PREVIEW_N - 1)),
+/** The card's own algorithm genuinely sorting 14 bars, on loop. */
+function MiniSort({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
+  const frames = useMemo(() => previewFrames(algo, previewArray(14, seed)), [algo, seed]);
+  const idx = useLoopingIndex(frames.length, 150, 11);
+  return (
+    <div className="h-[132px] rounded-2xl bg-surface-2 px-[18px] pb-3.5 pt-[18px]">
+      <PreviewBars frame={frames[idx]} gap={5} radius="4px 4px 2px 2px" ms={120} />
+    </div>
   );
-  let s = seed * 2654435761;
-  for (let i = arr.length - 1; i > 0; i--) {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    const j = s % (i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }
 
-/**
- * A living preview: the card's own algorithm genuinely sorting 14 bars on
- * loop, driven by the real step engine. setInterval (not rAF) so previews
- * stay simple; ~7 steps/s across 6 cards is negligible work.
- */
-function MiniSort({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
-  const input = useMemo(() => previewArray(seed), [seed]);
-  const playerRef = useRef<Player | null>(null);
-  if (playerRef.current === null) {
-    playerRef.current = new Player(input, buildSteps(algo.generator, input));
-  }
-  const [frame, setFrame] = useState<Frame>(() => playerRef.current!.frame());
-
-  useEffect(() => {
-    let timeout: number | undefined;
-    const interval = window.setInterval(() => {
-      const player = playerRef.current!;
-      if (player.forward()) {
-        if (player.atEnd) player.markAllSorted();
-        setFrame(player.frame());
-        if (player.atEnd) {
-          timeout = window.setTimeout(() => {
-            player.reset();
-            setFrame(player.frame());
-          }, PREVIEW_PAUSE_MS);
-        }
-      }
-    }, PREVIEW_STEP_MS);
-    return () => {
-      window.clearInterval(interval);
-      if (timeout !== undefined) window.clearTimeout(timeout);
-    };
-  }, []);
-
-  // Render by position: cheap flex row, bar identity not needed at this size.
-  const byPos = useMemo(() => {
-    const heights = new Array<number>(frame.heights.length);
-    const states = new Array<string>(frame.heights.length);
-    for (let id = 0; id < frame.heights.length; id++) {
-      heights[frame.posOf[id]] = frame.heights[id];
-      states[frame.posOf[id]] = frame.state[id];
-    }
-    return { heights, states };
-  }, [frame]);
-
+function AlgorithmCard({ algo, seed }: { algo: AlgorithmMeta; seed: number }) {
   return (
-    <div className="flex h-16 items-end gap-1" aria-hidden="true">
-      {byPos.heights.map((h, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-sm"
-          style={{
-            height: `${16 + (h / 100) * 48}px`,
-            backgroundColor: STATE_BG[byPos.states[i]] ?? STATE_BG.default,
-            transition: 'height 120ms ease, background-color 90ms linear',
-          }}
-        />
-      ))}
-    </div>
+    <Link
+      to={`/visualize?algo=${algo.key}`}
+      className="flex flex-col gap-[18px] rounded-3xl bg-surface px-4 pb-[22px] pt-4 text-primary shadow-sm transition-[transform,box-shadow] duration-[250ms] ease-spring hover:-translate-y-[3px] hover:shadow-md"
+    >
+      <MiniSort algo={algo} seed={seed} />
+      <div className="flex flex-col gap-2 px-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-xl font-[650] tracking-[-0.015em]">{algo.name}</h2>
+          <span className="font-mono text-sm">{algo.complexity.average}</span>
+        </div>
+        <p className="text-pretty text-[15px] leading-[1.45] text-secondary">{algo.blurb}</p>
+      </div>
+      <dl className="mx-1.5 grid grid-cols-3 gap-2 border-t-[0.5px] border-hair pt-3.5">
+        {(
+          [
+            ['Best', algo.complexity.best],
+            ['Worst', algo.complexity.worst],
+            ['Space', algo.complexity.space],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-[3px]">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className="font-mono text-[13px]">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mx-1.5 flex items-center gap-2">
+        <StableBadge stable={algo.stable} className="px-2.5 py-1 text-xs" />
+        <span className="rounded-full bg-fill px-2.5 py-1 text-xs font-medium text-secondary">
+          {algo.writesModel === 'swap' ? 'Swap-based' : 'Write-based'}
+        </span>
+        <span className="ml-auto text-sm font-medium text-accent">Visualize →</span>
+      </div>
+    </Link>
   );
 }
 
 export default function Gallery() {
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-24 md:pt-28">
-      <p className="mb-2 font-mono text-xs uppercase tracking-[0.25em] text-accent">Gallery</p>
-      <h1 className="font-display text-4xl italic tracking-[-1px] text-primary md:text-5xl">
-        Choose an algorithm
-      </h1>
-      <p className="mt-2 mb-10 max-w-2xl text-secondary">
-        Six classic sorting algorithms, from the simple to the clever — each card is really sorting,
-        right now, with its own method. Pick one to take the controls.
+    <div className="mx-auto w-full max-w-[1180px] px-4 pb-24 pt-[72px] sm:px-6">
+      <h1 className="text-[clamp(36px,5vw,52px)] font-bold tracking-[-0.035em]">Six algorithms</h1>
+      <p className="mb-10 mt-3.5 max-w-[560px] text-pretty text-lg leading-[1.45] text-secondary">
+        Each preview is really sorting, right now, with its own method. Pick one to take the
+        controls.
       </p>
-
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {ALGORITHMS.map((algo, idx) => (
-          <Link
-            key={algo.key}
-            to={`/visualize?algo=${algo.key}`}
-            className="liquid-glass group flex flex-col gap-3 rounded-[1.25rem] p-5 transition-transform duration-fast hover:-translate-y-0.5"
-          >
-            <MiniSort algo={algo} seed={idx + 1} />
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-display text-2xl italic tracking-tight text-primary">
-                {algo.name}
-              </h2>
-              <span className="font-mono text-xs text-muted">{algo.complexity.average}</span>
-            </div>
-            <p className="line-clamp-3 text-sm font-light leading-relaxed text-secondary">
-              {algo.description}
-            </p>
-            <div className="mt-auto flex items-center gap-2 pt-1">
-              <span className="liquid-glass rounded-full px-2.5 py-0.5 text-[11px] text-muted">
-                {algo.stable ? 'Stable' : 'Unstable'}
-              </span>
-              <span className="liquid-glass rounded-full px-2.5 py-0.5 text-[11px] text-muted">
-                {algo.writesModel === 'swap' ? 'Swap-based' : 'Write-based'}
-              </span>
-              <span className="ml-auto font-mono text-xs text-accent transition-transform duration-fast group-hover:translate-x-0.5">
-                Visualize →
-              </span>
-            </div>
-          </Link>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-5">
+        {ALGORITHMS.map((algo, i) => (
+          <AlgorithmCard key={algo.key} algo={algo} seed={i + 1} />
         ))}
       </div>
     </div>

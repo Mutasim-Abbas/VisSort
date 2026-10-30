@@ -1,9 +1,9 @@
 import type { AlgorithmKey } from './registry';
 
 /**
- * Teaching pseudocode for the Learn page. Indentation is encoded per line so
- * the renderer controls its own spacing; `k` marks keyword-ish lines rendered
- * with the accent tint.
+ * Teaching pseudocode shown in the Visualizer's Details panel, with the line
+ * that produced the current step highlighted. Indentation is encoded per line
+ * so the renderer controls its own spacing.
  */
 export interface PseudoLine {
   indent: 0 | 1 | 2 | 3;
