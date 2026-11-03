@@ -181,7 +181,7 @@ export function createTree(host, E) {
       gNodes.appendChild(g);
       return { nd, g, halo, box, cells, badge, badgeText };
     });
-    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy: (nd) => top(nd) + nodeH / 2, text, bp, cellH };
+    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy: (nd) => top(nd) + nodeH / 2, text, bp, cellH, merging: model.nodes.some((nd) => nd.combineAt !== null) };
   }
   function paintCell(cell, v, s, max, snap) {
     const blank = v === null;
@@ -217,11 +217,13 @@ export function createTree(host, E) {
       set(n.g, 's:opacity', st === 'pending' ? '0.55' : '1');
       const live = idx >= nd.liveFrom && idx <= nd.liveTo;
       const shot = idx < nd.liveFrom ? nd.snapIn : nd.snapOut;
+      // a merge that has returned hands back a sorted run
+      const merged = R.merging && st === 'returned';
       n.cells.forEach((cell, i) => {
         const p = nd.lo + i;
         if (st === 'pending') paintCell(cell, null, 'default', max, snap);
-        else if (live) paintCell(cell, vals[p], states[p], max, snap);
-        else paintCell(cell, shot.vals[i], shot.states[i], max, snap);
+        else if (live) paintCell(cell, vals[p], merged ? 'sorted' : states[p], max, snap);
+        else paintCell(cell, shot.vals[i], merged ? 'sorted' : shot.states[i], max, snap);
       });
       if (n.badge) {
         const shown = idx > nd.pivotAt;
