@@ -143,7 +143,10 @@ export function createTree(host, E) {
     const edges = [];
     for (const nd of visible) for (const ch of nd.children) {
       if (ch.depth > MAX_DEPTH) continue;
-      const x1 = cx(nd), y1 = top(nd) + nodeH, x2 = cx(ch), y2 = top(ch), my = (y1 + y2) / 2;
+      // leave from the middle of the slice this child is handed
+      const left = cx(nd) - boxW(nd) / 2 + bp;
+      const x1 = left + ((ch.lo - nd.lo) * c + (ch.hi - nd.lo) * c + cellW) / 2;
+      const y1 = top(nd) + nodeH, x2 = cx(ch), y2 = top(ch), my = (y1 + y2) / 2;
       const p = svg('path', { d: `M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}`, fill: 'none' }, { transition: 'stroke .2s ease, stroke-width .2s ease' });
       gEdges.appendChild(p);
       edges.push({ p, parent: nd, child: ch });
