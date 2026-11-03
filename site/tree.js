@@ -109,8 +109,10 @@ export function createTree(host, E) {
   }
   function buildRecursion(model, n) {
     body.textContent = '';
-    const c = n <= 8 ? 34 : n <= 12 ? 30 : n <= 16 ? 27 : n <= 24 ? 23 : 20;
-    const ig = 2, bp = 3, cellW = c - ig, cellH = c - ig, nodeH = cellH + bp * 2;
+    const c = n <= 8 ? 34 : n <= 12 ? 30 : n <= 16 ? 27 : n <= 24 ? 23 : n <= 32 ? 20 : n <= 48 ? 12 : n <= 100 ? 8 : 6;
+    // past 32 values the numbers stop fitting, so each cell becomes a bar
+    const text = c >= 18;
+    const ig = text ? 2 : c >= 8 ? 1 : 0, bp = text ? 3 : 1.5, cellW = c - ig, cellH = text ? c - ig : 22, nodeH = cellH + bp * 2;
     const fs = c >= 30 ? 12.5 : c >= 26 ? 11.5 : c >= 22 ? 10.5 : 9;
     const depth = Math.min(model.maxDepth, MAX_DEPTH), pad = 18;
     // a gap opens wherever a call hands its slices to its children; the higher the split, the wider
@@ -156,18 +158,22 @@ export function createTree(host, E) {
       const w = boxW(nd);
       const g = svg('g', { transform: `translate(${cx(nd) - w / 2} ${top(nd)})` }, { transition: 'opacity .25s ease' });
       const halo = svg('rect', { x: -4, y: -4, width: w + 8, height: nodeH + 8, rx: 11 }, { fill: 'none', stroke: 'var(--text)', strokeWidth: '1', opacity: '0', transition: 'opacity .2s ease' });
-      const box = svg('rect', { x: 0, y: 0, width: w, height: nodeH, rx: 7 }, { fill: 'var(--surface)', transition: 'stroke .2s ease' });
+      const box = svg('rect', { x: 0, y: 0, width: w, height: nodeH, rx: text ? 7 : 3 }, { fill: 'var(--surface)', transition: 'stroke .2s ease' });
       g.append(halo, box);
       const cells = [];
       for (let p = nd.lo; p <= nd.hi; p++) {
         const x = bp + (p - nd.lo) * c;
-        const r = svg('rect', { x, y: bp, width: cellW, height: cellH, rx: 5 }, { strokeWidth: '1.3', transition: CELL_TR });
-        const t = svg('text', { x: x + cellW / 2, y: bp + cellH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, { fontFamily: MONO, fontSize: fs + 'px', fontWeight: '600', fill: 'var(--text)' });
-        g.append(r, t);
+        const r = svg('rect', { x, y: bp, width: cellW, height: cellH, rx: text ? 5 : 1 }, { strokeWidth: '1.3', transition: CELL_TR });
+        g.appendChild(r);
+        let t = null;
+        if (text) {
+          t = svg('text', { x: x + cellW / 2, y: bp + cellH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, { fontFamily: MONO, fontSize: fs + 'px', fontWeight: '600', fill: 'var(--text)' });
+          g.appendChild(t);
+        }
         cells.push({ r, t });
       }
       let badge = null, badgeText = null;
-      if (nd.pivotAt !== null) {
+      if (text && nd.pivotAt !== null) {
         badge = svg('rect', { x: w - 16, y: -10, width: 30, height: 16, rx: 8 }, { fill: sv('pivot') });
         badgeText = svg('text', { x: w - 1, y: -2, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, { fontFamily: MONO, fontSize: '9.5px', fontWeight: '600', fill: '#fff' });
         g.append(badge, badgeText);
@@ -175,14 +181,20 @@ export function createTree(host, E) {
       gNodes.appendChild(g);
       return { nd, g, halo, box, cells, badge, badgeText };
     });
-    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy: (nd) => top(nd) + nodeH / 2 };
+    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy: (nd) => top(nd) + nodeH / 2, text, bp, cellH };
   }
-  function paintCell(cell, v, s, snap) {
+  function paintCell(cell, v, s, max, snap) {
     const blank = v === null;
+    set(cell.r, 's:transition', snap ? 'none' : CELL_TR);
+    if (!R.text) {
+      const h = blank ? 0 : Math.max(2, (v / max) * R.cellH);
+      set(cell.r, 'height', String(h)); set(cell.r, 'y', String(R.bp + R.cellH - h));
+      set(cell.r, 's:fill', sv(s));
+      return;
+    }
     set(cell.r, 's:fill', blank ? 'var(--fill)' : `color-mix(in srgb, ${sv(s)} ${s === 'default' ? 30 : 32}%, var(--surface))`);
     set(cell.r, 's:stroke', blank || s === 'default' || s === 'sorted' ? 'transparent' : sv(s));
     set(cell.t, 'text', blank ? '' : String(Math.round(v)));
-    set(cell.r, 's:transition', snap ? 'none' : CELL_TR);
   }
   function paintRecursion(model, idx, vals, states, max, snap) {
     const active = E.activeNode(model, idx);
@@ -207,9 +219,9 @@ export function createTree(host, E) {
       const shot = idx < nd.liveFrom ? nd.snapIn : nd.snapOut;
       n.cells.forEach((cell, i) => {
         const p = nd.lo + i;
-        if (st === 'pending') paintCell(cell, null, 'default', snap);
-        else if (live) paintCell(cell, vals[p], states[p], snap);
-        else paintCell(cell, shot.vals[i], shot.states[i], snap);
+        if (st === 'pending') paintCell(cell, null, 'default', max, snap);
+        else if (live) paintCell(cell, vals[p], states[p], max, snap);
+        else paintCell(cell, shot.vals[i], shot.states[i], max, snap);
       });
       if (n.badge) {
         const shown = idx > nd.pivotAt;
