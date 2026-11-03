@@ -82,16 +82,56 @@ export function createTree(host, E) {
   }
 
   // ---------- recursion tree ----------
+  // Each call is drawn as the values it holds: the full array at the root, every child under its slice.
   let R = null;
+  const CELL_TR = 'fill .15s linear, stroke .15s linear';
+  const calm = (s) => (s === 'sorted' ? 'sorted' : 'default');
+  // A call's values move only while it does its own work (quicksort's partition, merge sort's merge);
+  // outside that window it shows what it was handed, then what it handed back.
+  function snapshots(model, base, steps) {
+    const want = new Map();
+    const need = (t, nd, key) => { if (!want.has(t)) want.set(t, []); want.get(t).push([nd, key]); };
+    for (const nd of model.nodes) {
+      nd.liveFrom = (nd.combineAt ?? nd.openedAt) + 1;
+      nd.liveTo = (nd.pivotSortedAt ?? nd.closedAt) + 1;
+      need(nd.openedAt + 1, nd, 'snapIn'); need(nd.liveTo, nd, 'snapOut');
+    }
+    const pl = new E.Player(base, steps);
+    for (let t = 0; t <= steps.length; t++) {
+      const jobs = want.get(t);
+      if (jobs) {
+        const f = pl.frame(), vals = [], states = [];
+        for (let id = 0; id < f.heights.length; id++) { vals[f.posOf[id]] = f.heights[id]; states[f.posOf[id]] = f.state[id]; }
+        for (const [nd, key] of jobs) nd[key] = { vals: vals.slice(nd.lo, nd.hi + 1), states: states.slice(nd.lo, nd.hi + 1).map(calm) };
+      }
+      pl.forward();
+    }
+  }
   function buildRecursion(model, n) {
     body.textContent = '';
-    const slot = n <= 8 ? 92 : n <= 16 ? 70 : n <= 32 ? 50 : 40;
-    const depth = Math.min(model.maxDepth, MAX_DEPTH);
-    const nodeW = slot - 10, nodeH = 42, pad = 16;
+    const c = n <= 8 ? 34 : n <= 12 ? 30 : n <= 16 ? 27 : n <= 24 ? 23 : n <= 32 ? 20 : n <= 48 ? 12 : n <= 100 ? 8 : 6;
+    // past 32 values the numbers stop fitting, so each cell becomes a bar
+    const text = c >= 18;
+    const ig = text ? 2 : c >= 8 ? 1 : 0, bp = text ? 3 : 1.5, cellW = c - ig, cellH = text ? c - ig : 22, nodeH = cellH + bp * 2;
+    const fs = c >= 30 ? 12.5 : c >= 26 ? 11.5 : c >= 22 ? 10.5 : 9;
+    const depth = Math.min(model.maxDepth, MAX_DEPTH), pad = 18;
+    // a gap opens wherever a call hands its slices to its children; the higher the split, the wider
+    const gapAt = new Array(n + 1).fill(0), gMin = Math.max(2, c * 0.3);
+    for (const nd of model.nodes) {
+      if (nd.depth >= MAX_DEPTH) continue;
+      const g = Math.max(gMin, c * 0.9 * Math.pow(0.72, nd.depth));
+      for (const ch of nd.children) {
+        if (ch.lo > nd.lo) gapAt[ch.lo] = g;
+        if (ch.hi < nd.hi) gapAt[ch.hi + 1] = g;
+      }
+    }
+    const X = new Array(n);
+    for (let p = 0, x = 0; p < n; p++) { x += gapAt[p]; X[p] = x; x += c; }
+    const spanW = X[n - 1] + c;
     const bh0 = Math.max(160, body.clientHeight);
-    // Deep trees squeeze their level spacing before anything shrinks.
-    const level = Math.max(56, Math.min(74, (bh0 - pad * 2 - nodeH) / Math.max(1, depth)));
-    const natW = model.width * slot + pad * 2, natH = (depth + 1) * level - (level - nodeH) + pad * 2;
+    // deep trees squeeze their level spacing before anything shrinks
+    const level = nodeH + Math.max(24, Math.min(46, (bh0 - pad * 2 - (depth + 1) * nodeH) / Math.max(1, depth)));
+    const natW = spanW + pad * 2, natH = depth * level + nodeH + pad * 2;
     const bw = Math.max(200, body.clientWidth), bh = Math.max(160, body.clientHeight);
     const fitBoth = Math.min(bw / natW, bh / natH);
     const scale = fitBoth >= 0.8 ? Math.min(1.15, fitBoth) : Math.max(0.7, Math.min(1.15, bw / natW));
@@ -99,55 +139,66 @@ export function createTree(host, E) {
     const gEdges = svg('g'), gNodes = svg('g');
     svgEl.append(gEdges, gNodes);
     body.appendChild(svgEl);
-    const cx = (nd) => pad + nd.x * slot + slot / 2;
-    const cy = (nd) => pad + nd.depth * level + nodeH / 2;
+    const cx = (nd) => pad + (X[nd.lo] + X[nd.hi] + c) / 2;
+    const top = (nd) => pad + nd.depth * level;
+    const boxW = (nd) => (nd.hi - nd.lo + 1) * c - ig + bp * 2;
     const visible = model.nodes.filter((nd) => nd.depth <= MAX_DEPTH);
     const edges = [];
     for (const nd of visible) for (const ch of nd.children) {
       if (ch.depth > MAX_DEPTH) continue;
-      const x1 = cx(nd), y1 = cy(nd) + nodeH / 2, x2 = cx(ch), y2 = cy(ch) - nodeH / 2, my = (y1 + y2) / 2;
+      // leave from the middle of the slice this child is handed
+      const left = cx(nd) - boxW(nd) / 2 + bp;
+      const x1 = left + ((ch.lo - nd.lo) * c + (ch.hi - nd.lo) * c + cellW) / 2;
+      const y1 = top(nd) + nodeH, x2 = cx(ch), y2 = top(ch), my = (y1 + y2) / 2;
       const p = svg('path', { d: `M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}`, fill: 'none' }, { transition: 'stroke .2s ease, stroke-width .2s ease' });
       gEdges.appendChild(p);
       edges.push({ p, parent: nd, child: ch });
     }
     const nodes = visible.map((nd) => {
-      const g = svg('g', { transform: `translate(${cx(nd) - nodeW / 2} ${cy(nd) - nodeH / 2})` }, { transition: 'opacity .25s ease' });
-      const halo = svg('rect', { x: -4, y: -4, width: nodeW + 8, height: nodeH + 8, rx: 14, fill: 'none' }, { stroke: 'var(--text)', strokeWidth: '1', opacity: '0', transition: 'opacity .2s ease' });
-      const box = svg('rect', { x: 0, y: 0, width: nodeW, height: nodeH, rx: 10 }, { transition: 'fill .2s ease, stroke .2s ease' });
-      const prog = svg('rect', { x: 0, y: nodeH - 3, width: 0, height: 3, rx: 1.5 }, { fill: sv('overwriting'), transition: 'width .15s ease' });
-      const size = nd.hi - nd.lo + 1;
-      const leaf = size === 1;
-      const label = svg('text', { x: nodeW / 2, y: leaf ? 15 : 16, 'text-anchor': 'middle' }, { fontFamily: MONO, fontSize: leaf ? '9.5px' : '11px', fontWeight: '500', transition: 'fill .2s ease' });
-      label.textContent = leaf ? `a[${nd.lo}]` : `${nd.lo}–${nd.hi}`;
-      g.append(halo, box, prog, label);
-      let valueText = null;
-      const spark = [];
-      if (leaf) {
-        valueText = svg('text', { x: nodeW / 2, y: 32, 'text-anchor': 'middle' }, { fontFamily: MONO, fontSize: '13px', fontWeight: '600', transition: 'fill .2s ease' });
-        g.appendChild(valueText);
-      } else {
-        const k = Math.min(size, 12), inner = nodeW - 14, bwid = inner / k;
-        for (let i = 0; i < k; i++) {
-          const r = svg('rect', { x: 7 + i * bwid, width: Math.max(1, bwid - 1.5), rx: 1 }, { transition: 'height .15s ease, y .15s ease, fill .15s linear' });
-          g.appendChild(r);
-          spark.push({ r, pos: nd.lo + Math.floor((i * size) / k) });
+      const w = boxW(nd);
+      const g = svg('g', { transform: `translate(${cx(nd) - w / 2} ${top(nd)})` }, { transition: 'opacity .25s ease' });
+      const halo = svg('rect', { x: -4, y: -4, width: w + 8, height: nodeH + 8, rx: 11 }, { fill: 'none', stroke: 'var(--text)', strokeWidth: '1', opacity: '0', transition: 'opacity .2s ease' });
+      const box = svg('rect', { x: 0, y: 0, width: w, height: nodeH, rx: text ? 7 : 3 }, { fill: 'var(--surface)', transition: 'stroke .2s ease' });
+      g.append(halo, box);
+      const cells = [];
+      for (let p = nd.lo; p <= nd.hi; p++) {
+        const x = bp + (p - nd.lo) * c;
+        const r = svg('rect', { x, y: bp, width: cellW, height: cellH, rx: text ? 5 : 1 }, { strokeWidth: '1.3', transition: CELL_TR });
+        g.appendChild(r);
+        let t = null;
+        if (text) {
+          t = svg('text', { x: x + cellW / 2, y: bp + cellH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, { fontFamily: MONO, fontSize: fs + 'px', fontWeight: '600', fill: 'var(--text)' });
+          g.appendChild(t);
         }
+        cells.push({ r, t });
       }
       let badge = null, badgeText = null;
-      if (nd.pivotAt !== null) {
-        badge = svg('rect', { x: nodeW - 22, y: -9, width: 30, height: 16, rx: 8 }, { fill: sv('pivot') });
-        badgeText = svg('text', { x: nodeW - 7, y: 3, 'text-anchor': 'middle' }, { fontFamily: MONO, fontSize: '9.5px', fontWeight: '600', fill: '#fff' });
+      if (text && nd.pivotAt !== null) {
+        badge = svg('rect', { x: w - 16, y: -10, width: 30, height: 16, rx: 8 }, { fill: sv('pivot') });
+        badgeText = svg('text', { x: w - 1, y: -2, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, { fontFamily: MONO, fontSize: '9.5px', fontWeight: '600', fill: '#fff' });
         g.append(badge, badgeText);
       }
       gNodes.appendChild(g);
-      return { nd, g, halo, box, prog, label, valueText, spark, badge, badgeText, leaf, nodeW, nodeH };
+      return { nd, g, halo, box, cells, badge, badgeText };
     });
-    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy };
+    R = { svgEl, edges, nodes, clipped: model.nodes.length - visible.length, scale, cx, cy: (nd) => top(nd) + nodeH / 2, text, bp, cellH, merging: model.nodes.some((nd) => nd.combineAt !== null) };
+  }
+  function paintCell(cell, v, s, max, snap) {
+    const blank = v === null;
+    set(cell.r, 's:transition', snap ? 'none' : CELL_TR);
+    if (!R.text) {
+      const h = blank ? 0 : Math.max(2, (v / max) * R.cellH);
+      set(cell.r, 'height', String(h)); set(cell.r, 'y', String(R.bp + R.cellH - h));
+      set(cell.r, 's:fill', sv(s));
+      return;
+    }
+    set(cell.r, 's:fill', blank ? 'var(--fill)' : `color-mix(in srgb, ${sv(s)} ${s === 'default' ? 30 : 32}%, var(--surface))`);
+    set(cell.r, 's:stroke', blank || s === 'default' || s === 'sorted' ? 'transparent' : sv(s));
+    set(cell.t, 'text', blank ? '' : String(Math.round(v)));
   }
   function paintRecursion(model, idx, vals, states, max, snap) {
     const active = E.activeNode(model, idx);
     const path = new Set(E.callPath(model, idx).map((n) => n.id));
-    const tr = snap ? 'none' : null;
     for (const e of R.edges) {
       const open = idx > e.child.openedAt;
       const hot = path.has(e.parent.id) && path.has(e.child.id);
@@ -156,36 +207,31 @@ export function createTree(host, E) {
       set(e.p, 's:strokeDasharray', open ? 'none' : '3 4');
     }
     for (const n of R.nodes) {
-      const st = E.nodeStateAt(n.nd, idx);
-      const isActive = active && n.nd.id === active.id;
-      const onPath = path.has(n.nd.id);
-      let fill = 'var(--surface)', stroke = mixT(16), dash = '3 3', sw = '1', fg = 'var(--text-3)';
-      if (st === 'active') { fill = 'var(--surface)'; stroke = isActive ? 'var(--text)' : onPath ? mixT(55) : mixT(30); dash = 'none'; sw = isActive ? '1.6' : '1.1'; fg = 'var(--text)'; }
-      else if (st === 'combining') { fill = `color-mix(in srgb, ${sv('overwriting')} 10%, var(--surface))`; stroke = sv('overwriting'); dash = 'none'; sw = '1.4'; fg = 'var(--text)'; }
-      else if (st === 'returned') { fill = `color-mix(in srgb, ${sv('sorted')} 12%, var(--surface))`; stroke = `color-mix(in srgb, ${sv('sorted')} 55%, transparent)`; dash = 'none'; sw = '1'; fg = 'var(--text)'; }
-      set(n.box, 's:fill', fill); set(n.box, 's:stroke', stroke); set(n.box, 's:strokeDasharray', dash); set(n.box, 's:strokeWidth', sw);
-      set(n.label, 's:fill', st === 'pending' ? 'var(--text-3)' : n.leaf ? 'var(--text-3)' : fg);
+      const nd = n.nd, isActive = active && nd.id === active.id;
+      // the root holds the full array before the first call opens
+      const st = nd === model.root && idx <= nd.openedAt ? 'active' : E.nodeStateAt(nd, idx);
+      let stroke = mixT(16), dash = '3 3', sw = '1';
+      if (st === 'returned') { stroke = `color-mix(in srgb, ${sv('sorted')} 50%, transparent)`; dash = 'none'; }
+      else if (st !== 'pending') { stroke = isActive ? 'var(--text)' : path.has(nd.id) ? mixT(50) : mixT(28); dash = 'none'; sw = isActive ? '1.6' : '1.1'; }
+      set(n.box, 's:stroke', stroke); set(n.box, 's:strokeDasharray', dash); set(n.box, 's:strokeWidth', sw);
       set(n.halo, 's:opacity', isActive ? '0.16' : '0');
       set(n.g, 's:opacity', st === 'pending' ? '0.55' : '1');
-      const p = E.combineProgress(n.nd, idx);
-      set(n.prog, 'width', String(p ? n.nodeW * p : 0));
-      if (n.valueText) {
-        set(n.valueText, 'text', st === 'pending' ? '·' : String(Math.round(vals[n.nd.lo])));
-        set(n.valueText, 's:fill', st === 'pending' ? 'var(--text-3)' : 'var(--text)');
-      }
-      for (const b of n.spark) {
-        const h = st === 'pending' ? 0 : Math.max(2, (vals[b.pos] / max) * 13);
-        set(b.r, 'height', String(h)); set(b.r, 'y', String(n.nodeH - 6 - h));
-        set(b.r, 's:fill', st === 'returned' ? `color-mix(in srgb, ${sv('sorted')} 75%, transparent)` : sv(states[b.pos]));
-        if (snap) set(b.r, 's:transition', 'none');
-      }
+      const live = idx >= nd.liveFrom && idx <= nd.liveTo;
+      const shot = idx < nd.liveFrom ? nd.snapIn : nd.snapOut;
+      // a merge that has returned hands back a sorted run
+      const merged = R.merging && st === 'returned';
+      n.cells.forEach((cell, i) => {
+        const p = nd.lo + i;
+        if (st === 'pending') paintCell(cell, null, 'default', max, snap);
+        else if (live) paintCell(cell, vals[p], merged ? 'sorted' : states[p], max, snap);
+        else paintCell(cell, shot.vals[i], merged ? 'sorted' : shot.states[i], max, snap);
+      });
       if (n.badge) {
-        const shown = idx > n.nd.pivotAt;
-        const pos = n.nd.pivotSortedAt != null && idx >= n.nd.pivotSortedAt ? n.nd.pivotPos : n.nd.hi;
+        const shown = idx > nd.pivotAt;
+        const pos = nd.pivotSortedAt != null && idx >= nd.pivotSortedAt ? nd.pivotPos : nd.hi;
         set(n.badge, 's:opacity', shown ? '1' : '0'); set(n.badgeText, 's:opacity', shown ? '1' : '0');
         set(n.badgeText, 'text', String(Math.round(vals[pos])));
       }
-      if (tr) { set(n.box, 's:transition', tr); }
     }
     // keep the active node in view when the tree scrolls
     if (active && body.scrollWidth > body.clientWidth + 4) {
@@ -309,7 +355,7 @@ export function createTree(host, E) {
   // ---------- update ----------
   function update(p) {
     lastProps = p;
-    const { steps, frame, kind, snap } = p;
+    const { steps, base, frame, kind, snap } = p;
     const n = frame.heights.length;
     const vals = new Array(n), states = new Array(n);
     let max = 1;
@@ -322,7 +368,7 @@ export function createTree(host, E) {
       buildRibbon(n);
       foot.textContent = '';
       body.scrollTop = body.scrollLeft = 0;
-      if (kind === 'recursion') { cur.model = E.buildTreeModel(steps); buildRecursion(cur.model, n); }
+      if (kind === 'recursion') { cur.model = E.buildTreeModel(steps); snapshots(cur.model, base, steps); buildRecursion(cur.model, n); }
       else if (kind === 'heap') {
         cur.heapAt = new Array(steps.length + 1); cur.curAt = new Array(steps.length + 1);
         let h = n, c = null; cur.heapAt[0] = n; cur.curAt[0] = null;

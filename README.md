@@ -42,7 +42,10 @@ is no backend.
     Each group is bracketed and labelled, with a cursor rail, a plain-English
     invariant, and a comparison callout showing what each comparison decided.
   - **Structure** — the shape the algorithm has: a recursion tree for merge and
-    quicksort (built step by step as calls open and return), the binary heap for
+    quicksort with the full array at the root and every call drawn as the values
+    it holds — quicksort's partition around its pivot, merge sort's halves and
+    the sorted runs they hand back — built step by step as calls open and
+    return. Past 32 values the cells become bars. The binary heap for
     heapsort, and a pass ladder for the three that run in flat passes. A pinned
     array ribbon ties every abstract range back to the real elements.
 - **Your own numbers** — type any list; the app never invents data for you (it

@@ -439,7 +439,7 @@ class Component extends DCLogic {
   }
   pushTree() {
     if (!this.tree || !this.player) return;
-    this.tree.update({ steps: this.steps, frame: this.state.frame, kind: window.VSEngine.structureOf(this.state.algoKey), snap: this.rate >= 20 });
+    this.tree.update({ steps: this.steps, base: this.player.base, frame: this.state.frame, kind: window.VSEngine.structureOf(this.state.algoKey), snap: this.rate >= 20 });
   }
   applyTheme() {
     const root = document.documentElement;
