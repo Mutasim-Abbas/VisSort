@@ -207,8 +207,9 @@ export function createTree(host, E) {
       set(e.p, 's:strokeDasharray', open ? 'none' : '3 4');
     }
     for (const n of R.nodes) {
-      const nd = n.nd, st = E.nodeStateAt(nd, idx);
-      const isActive = active && nd.id === active.id;
+      const nd = n.nd, isActive = active && nd.id === active.id;
+      // the root holds the full array before the first call opens
+      const st = nd === model.root && idx <= nd.openedAt ? 'active' : E.nodeStateAt(nd, idx);
       let stroke = mixT(16), dash = '3 3', sw = '1';
       if (st === 'returned') { stroke = `color-mix(in srgb, ${sv('sorted')} 50%, transparent)`; dash = 'none'; }
       else if (st !== 'pending') { stroke = isActive ? 'var(--text)' : path.has(nd.id) ? mixT(50) : mixT(28); dash = 'none'; sw = isActive ? '1.6' : '1.1'; }
