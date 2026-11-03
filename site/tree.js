@@ -113,10 +113,11 @@ export function createTree(host, E) {
     const ig = 2, bp = 3, cellW = c - ig, cellH = c - ig, nodeH = cellH + bp * 2;
     const fs = c >= 30 ? 12.5 : c >= 26 ? 11.5 : c >= 22 ? 10.5 : 9;
     const depth = Math.min(model.maxDepth, MAX_DEPTH), pad = 18;
-    // a gap opens wherever a call hands its slices to its children
-    const gapAt = new Array(n + 1).fill(0), g = c * 0.6;
+    // a gap opens wherever a call hands its slices to its children; the higher the split, the wider
+    const gapAt = new Array(n + 1).fill(0), gMin = Math.max(2, c * 0.3);
     for (const nd of model.nodes) {
       if (nd.depth >= MAX_DEPTH) continue;
+      const g = Math.max(gMin, c * 0.9 * Math.pow(0.72, nd.depth));
       for (const ch of nd.children) {
         if (ch.lo > nd.lo) gapAt[ch.lo] = g;
         if (ch.hi < nd.hi) gapAt[ch.hi + 1] = g;
