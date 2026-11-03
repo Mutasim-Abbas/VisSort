@@ -85,6 +85,28 @@ export function createTree(host, E) {
   // Each call is drawn as the values it holds: the full array at the root, every child under its slice.
   let R = null;
   const CELL_TR = 'fill .15s linear, stroke .15s linear';
+  const calm = (s) => (s === 'sorted' ? 'sorted' : 'default');
+  // A call's values move only while it does its own work (quicksort's partition, merge sort's merge);
+  // outside that window it shows what it was handed, then what it handed back.
+  function snapshots(model, base, steps) {
+    const want = new Map();
+    const need = (t, nd, key) => { if (!want.has(t)) want.set(t, []); want.get(t).push([nd, key]); };
+    for (const nd of model.nodes) {
+      nd.liveFrom = (nd.combineAt ?? nd.openedAt) + 1;
+      nd.liveTo = (nd.pivotSortedAt ?? nd.closedAt) + 1;
+      need(nd.openedAt + 1, nd, 'snapIn'); need(nd.liveTo, nd, 'snapOut');
+    }
+    const pl = new E.Player(base, steps);
+    for (let t = 0; t <= steps.length; t++) {
+      const jobs = want.get(t);
+      if (jobs) {
+        const f = pl.frame(), vals = [], states = [];
+        for (let id = 0; id < f.heights.length; id++) { vals[f.posOf[id]] = f.heights[id]; states[f.posOf[id]] = f.state[id]; }
+        for (const [nd, key] of jobs) nd[key] = { vals: vals.slice(nd.lo, nd.hi + 1), states: states.slice(nd.lo, nd.hi + 1).map(calm) };
+      }
+      pl.forward();
+    }
+  }
   function buildRecursion(model, n) {
     body.textContent = '';
     const c = n <= 8 ? 34 : n <= 12 ? 30 : n <= 16 ? 27 : n <= 24 ? 23 : 20;
@@ -177,10 +199,13 @@ export function createTree(host, E) {
       set(n.box, 's:stroke', stroke); set(n.box, 's:strokeDasharray', dash); set(n.box, 's:strokeWidth', sw);
       set(n.halo, 's:opacity', isActive ? '0.16' : '0');
       set(n.g, 's:opacity', st === 'pending' ? '0.55' : '1');
+      const live = idx >= nd.liveFrom && idx <= nd.liveTo;
+      const shot = idx < nd.liveFrom ? nd.snapIn : nd.snapOut;
       n.cells.forEach((cell, i) => {
         const p = nd.lo + i;
         if (st === 'pending') paintCell(cell, null, 'default', snap);
-        else paintCell(cell, vals[p], states[p], snap);
+        else if (live) paintCell(cell, vals[p], states[p], snap);
+        else paintCell(cell, shot.vals[i], shot.states[i], snap);
       });
       if (n.badge) {
         const shown = idx > nd.pivotAt;
@@ -311,7 +336,7 @@ export function createTree(host, E) {
   // ---------- update ----------
   function update(p) {
     lastProps = p;
-    const { steps, frame, kind, snap } = p;
+    const { steps, base, frame, kind, snap } = p;
     const n = frame.heights.length;
     const vals = new Array(n), states = new Array(n);
     let max = 1;
@@ -324,7 +349,7 @@ export function createTree(host, E) {
       buildRibbon(n);
       foot.textContent = '';
       body.scrollTop = body.scrollLeft = 0;
-      if (kind === 'recursion') { cur.model = E.buildTreeModel(steps); buildRecursion(cur.model, n); }
+      if (kind === 'recursion') { cur.model = E.buildTreeModel(steps); snapshots(cur.model, base, steps); buildRecursion(cur.model, n); }
       else if (kind === 'heap') {
         cur.heapAt = new Array(steps.length + 1); cur.curAt = new Array(steps.length + 1);
         let h = n, c = null; cur.heapAt[0] = n; cur.curAt[0] = null;
