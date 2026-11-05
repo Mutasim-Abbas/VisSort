@@ -1,6 +1,6 @@
 // Plain three.js port of src/components/three/CraneView.tsx (CraneScene + CameraRig).
 // Geometry, materials, lighting and the per-step pick-and-place timeline are unchanged.
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 
 const WORLD_W = 11, BOX_H_MIN = 0.32, BOX_H_MAX = 2.75, RAIL_Y = 5, CLAW_PARK_Y = 4.15, LIFT = 1.15, JAW_GAP = 0.3, PAD_T = 0.03;
 const PH = { approach: 0.14, descend: 0.3, grip: 0.38, lifted: 0.52, carried: 0.72, placed: 0.86, released: 0.93 };
