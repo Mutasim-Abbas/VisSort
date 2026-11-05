@@ -20,6 +20,16 @@ button{font-family:inherit}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 @keyframes vsRise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Phone layout. The export's styles are inline, so these overrides need !important. */
+@media (max-width:640px){
+[data-m=header]{padding:0 10px!important;gap:6px!important;grid-template-columns:auto 1fr auto!important}
+[data-m=header]>button:first-child{gap:7px!important;padding:6px 2px!important}
+[data-m=nav]{justify-self:center}
+[data-m=nav-btn]{padding:7px 10px!important;font-size:13px!important}
+}
+@media (max-width:369px){
+[data-m=wordmark]{display:none}
+}
 </style>
 </helmet>
 <div style="min-height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--text);">
